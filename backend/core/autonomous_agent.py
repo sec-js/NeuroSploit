@@ -421,7 +421,7 @@ class LLMClient:
             try:
                 self.client = openai.OpenAI(api_key=self.openai_key)
                 self.provider = "openai"
-                self.model_name = self.configured_model or "gpt-4-turbo-preview"
+                self.model_name = self.configured_model or "gpt-4o"
                 print(f"[LLM] OpenAI API initialized (model: {self.model_name})")
                 return
             except Exception as e:
@@ -514,8 +514,10 @@ class LLMClient:
         errors = []
         if not ANTHROPIC_AVAILABLE and not OPENAI_AVAILABLE:
             errors.append("LLM libraries not installed (run: pip install anthropic openai)")
-        if not self.anthropic_key and not self.openai_key and not self.google_key:
-            errors.append("No API keys configured")
+        all_keys = [self.anthropic_key, self.openai_key, self.google_key,
+                     self.openrouter_key, self.together_key, self.fireworks_key, self.codex_key]
+        if not any(all_keys):
+            errors.append("No API keys configured (set ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY, TOGETHER_API_KEY, or FIREWORKS_API_KEY)")
         if not self._check_ollama():
             errors.append("Ollama not running locally")
         if not self._check_lmstudio():

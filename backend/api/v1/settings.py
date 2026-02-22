@@ -538,11 +538,11 @@ CLOUD_MODELS = {
         {"model_id": "claude-haiku-4-20250514", "display_name": "Claude Haiku 4", "context_length": 200000},
     ],
     "openai": [
-        {"model_id": "gpt-4-turbo-preview", "display_name": "GPT-4 Turbo", "context_length": 128000},
         {"model_id": "gpt-4o", "display_name": "GPT-4o", "context_length": 128000},
         {"model_id": "gpt-4o-mini", "display_name": "GPT-4o Mini", "context_length": 128000},
-        {"model_id": "o1-preview", "display_name": "O1 Preview", "context_length": 128000},
-        {"model_id": "o1-mini", "display_name": "O1 Mini", "context_length": 128000},
+        {"model_id": "gpt-4.1", "display_name": "GPT-4.1", "context_length": 1047576},
+        {"model_id": "gpt-4.1-mini", "display_name": "GPT-4.1 Mini", "context_length": 1047576},
+        {"model_id": "o3-mini", "display_name": "O3 Mini", "context_length": 200000},
     ],
     "gemini": [
         {"model_id": "gemini-pro", "display_name": "Gemini Pro", "context_length": 30720},

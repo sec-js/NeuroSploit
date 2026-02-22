@@ -1856,17 +1856,26 @@ async def send_realtime_message(session_id: str, request: RealtimeMessageRequest
             if not llm_status.get("lmstudio_available"):
                 error_details.append("LM Studio not running")
             if not llm_status.get("has_google_key"):
-                error_details.append("No GOOGLE_API_KEY set")
+                error_details.append("No GEMINI_API_KEY set")
+            if not llm_status.get("has_openrouter_key"):
+                error_details.append("No OPENROUTER_API_KEY set")
+            if not llm_status.get("has_together_key"):
+                error_details.append("No TOGETHER_API_KEY set")
+            if not llm_status.get("has_fireworks_key"):
+                error_details.append("No FIREWORKS_API_KEY set")
 
             error_msg = f"""⚠️ **No LLM Provider Available**
 
-Configure at least one of the following:
+Configure at least one of the following in your `.env` file:
 
-1. **Claude (Anthropic)**: Set `ANTHROPIC_API_KEY` environment variable
-2. **OpenAI/ChatGPT**: Set `OPENAI_API_KEY` environment variable
-3. **Google Gemini**: Set `GOOGLE_API_KEY` environment variable
-4. **Ollama (Local)**: Run `ollama serve` and ensure a model is pulled
-5. **LM Studio (Local)**: Start LM Studio server on port 1234
+1. **Claude (Anthropic)**: Set `ANTHROPIC_API_KEY`
+2. **OpenAI/ChatGPT**: Set `OPENAI_API_KEY`
+3. **OpenRouter (multi-model)**: Set `OPENROUTER_API_KEY`
+4. **Google Gemini**: Set `GEMINI_API_KEY`
+5. **Together AI**: Set `TOGETHER_API_KEY`
+6. **Fireworks AI**: Set `FIREWORKS_API_KEY`
+7. **Ollama (Local)**: Run `ollama serve` and ensure a model is pulled
+8. **LM Studio (Local)**: Start LM Studio server on port 1234
 
 **Current status:**
 {chr(10).join(f"- {d}" for d in error_details) if error_details else "- Unknown configuration issue"}

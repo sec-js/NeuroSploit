@@ -11,6 +11,10 @@ Kept for reference and migration only — **not** used by the v3.3.0 engine.
 | `neurosploit_legacy.py` | The 2,500-line monolithic CLI/orchestrator (`NeuroSploitv2`) |
 | `agents_python/` | Hand-coded Python agent classes (web/exploitation/lateral/privesc/persistence/recon) |
 | `custom_agents/` | Example custom Python agent |
+| `core/` | Old orchestration support (llm_manager, sandbox, report_generator, …) |
+| `backend_fastapi/` | Old FastAPI backend — replaced by `webgui/server.py` (stdlib) |
+| `frontend_react/` | Old React/Vite dashboard — replaced by the minimalist `webgui/` |
+| `test_agent_run.py` | Test harness for the old Python agents |
 
 ## What replaced it
 

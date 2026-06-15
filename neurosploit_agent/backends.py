@@ -122,17 +122,29 @@ class RunResult:
 def run(backend: Backend, prompt: str, workdir: str, model: str = "",
         autonomous: bool = True, mcp_config: Optional[str] = None,
         env: Optional[Dict[str, str]] = None, timeout: int = 7200,
-        dry_run: bool = False) -> RunResult:
-    """Execute a backend against the composed prompt and stream logs to disk."""
+        dry_run: bool = False, on_start=None) -> RunResult:
+    """Execute a backend against the composed prompt and stream logs to disk.
+
+    on_start(argv): optional callback invoked with the exact command line, so
+    callers/UI can show precisely what is being executed behind the scenes.
+    """
     os.makedirs(workdir, exist_ok=True)
     prompt_file = os.path.join(workdir, "master_prompt.md")
     open(prompt_file, "w", encoding="utf-8").write(prompt)
     log_path = os.path.join(workdir, "backend.log")
 
     argv = backend.build_argv(prompt_file, workdir, model, autonomous, mcp_config)
+    if on_start:
+        on_start(argv)
     full_env = os.environ.copy()
     if env:
         full_env.update(env)
+
+    # Claude Code refuses --dangerously-skip-permissions when running as root
+    # unless IS_SANDBOX=1 is set. The engine already isolates each run in its own
+    # workdir, so opt into the sandbox flag rather than failing rc=1 under root.
+    if autonomous and backend.key == "claude" and hasattr(os, "geteuid") and os.geteuid() == 0:
+        full_env.setdefault("IS_SANDBOX", "1")
 
     if dry_run:
         open(log_path, "w").write("DRY RUN\n" + " ".join(argv) + "\n")

@@ -87,3 +87,7 @@ data/rl_state.json
 neurosploit_gui_*.png
 neurosploit_demo_*.png
 logs/webgui.log
+
+# generated reports
+reports/report.*
+reports/*.pdf

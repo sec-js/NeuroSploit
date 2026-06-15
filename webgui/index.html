@@ -6,171 +6,351 @@
 <title>NeuroSploit v3.3.0</title>
 <style>
   :root{
-    --bg:#0b0c10; --panel:#14161d; --panel2:#1b1e27; --line:#262a36;
-    --text:#e7e9ee; --muted:#8b91a3; --accent:#8b5cf6; --accent2:#a855f7;
-    --ok:#34d399; --warn:#fbbf24; --crit:#f87171;
+    --bg:#080910; --bg2:#0d0f17; --panel:#13151f; --panel2:#1a1d29; --line:#252938;
+    --text:#e7e9ee; --muted:#878da1; --accent:#8b5cf6; --accent2:#a855f7; --accent3:#22d3ee;
+    --ok:#34d399; --warn:#fbbf24; --crit:#f87171; --high:#fb923c;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:radial-gradient(1200px 600px at 50% -10%,#1a1430 0,var(--bg) 55%);
-    color:var(--text);font:15px/1.5 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
-    min-height:100vh;display:flex;align-items:flex-start;justify-content:center;padding:48px 20px}
-  .wrap{width:100%;max-width:560px}
-  .brand{display:flex;align-items:center;gap:12px;margin-bottom:6px}
-  .logo{width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));
-    display:grid;place-items:center;font-weight:800;color:#fff;box-shadow:0 6px 24px rgba(139,92,246,.35)}
-  h1{font-size:20px;margin:0;letter-spacing:.2px}
-  .sub{color:var(--muted);font-size:13px;margin:2px 0 22px}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;
-    box-shadow:0 20px 60px rgba(0,0,0,.4)}
-  label{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin:0 0 6px}
-  .field{margin-bottom:16px}
-  input[type=text],select{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);
-    border-radius:10px;padding:11px 12px;font-size:14px;outline:none;transition:border .15s}
-  input[type=text]:focus,select:focus{border-color:var(--accent)}
-  .row{display:flex;gap:12px}.row>.field{flex:1}
-  .toggles{display:flex;gap:10px;margin:4px 0 20px}
-  .toggle{flex:1;display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);
-    border-radius:10px;padding:10px 12px;cursor:pointer;user-select:none;font-size:13px}
-  .toggle input{accent-color:var(--accent);width:16px;height:16px}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.55 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    display:grid;grid-template-columns:230px 1fr;min-height:100vh}
+  /* sidebar */
+  .side{background:linear-gradient(180deg,var(--bg2),#0a0b12);border-right:1px solid var(--line);
+    padding:20px 14px;display:flex;flex-direction:column;gap:4px;position:sticky;top:0;height:100vh}
+  .brand{display:flex;align-items:center;gap:10px;margin:2px 6px 22px}
+  .logo{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,var(--accent),var(--accent2));
+    display:grid;place-items:center;font-weight:800;color:#fff;box-shadow:0 6px 22px rgba(139,92,246,.4)}
+  .brand b{font-size:15px}.brand span{color:var(--muted);font-size:11px;display:block;margin-top:-2px}
+  .nav{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;color:var(--muted);
+    cursor:pointer;font-weight:500;font-size:13.5px;transition:.12s}
+  .nav:hover{background:var(--panel);color:var(--text)}
+  .nav.on{background:linear-gradient(135deg,rgba(139,92,246,.22),rgba(168,85,247,.12));color:#fff;
+    box-shadow:inset 0 0 0 1px rgba(139,92,246,.35)}
+  .nav .i{width:18px;text-align:center}
+  .sidefoot{margin-top:auto;font-size:11px;color:var(--muted);padding:10px 8px;border-top:1px solid var(--line)}
+  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:5px}
+  /* main */
+  main{padding:26px 32px;max-width:1080px}
+  .head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:18px}
+  h1{font-size:20px;margin:0}.sub{color:var(--muted);font-size:12.5px}
+  .view{display:none}.view.on{display:block}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:18px}
+  label{display:block;font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin:0 0 6px}
+  .field{margin-bottom:15px}
+  input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);
+    border-radius:9px;padding:10px 11px;font-size:13.5px;outline:none;font-family:inherit;transition:border .14s}
+  textarea{resize:vertical;min-height:74px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  .row{display:flex;gap:12px}.row>*{flex:1}
+  .toggles{display:flex;gap:10px;flex-wrap:wrap;margin:6px 0 16px}
+  .toggle{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:9px;padding:9px 12px;cursor:pointer;font-size:12.5px}
   .toggle.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px rgba(139,92,246,.3)}
+  .toggle input{accent-color:var(--accent)}
   .btns{display:flex;gap:10px}
-  button{flex:1;border:0;border-radius:11px;padding:13px;font-size:14px;font-weight:600;cursor:pointer;transition:.15s}
-  .run{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
-  .run:hover{filter:brightness(1.08)}
-  .ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
-  .ghost:hover{border-color:var(--accent)}
-  button:disabled{opacity:.5;cursor:not-allowed}
-  .meta{display:flex;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:14px}
-  .pill{background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:4px 10px}
+  button{border:0;border-radius:10px;padding:11px 16px;font-size:13.5px;font-weight:600;cursor:pointer;transition:.12s}
+  .run{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff;flex:1}
+  .run:hover{filter:brightness(1.08)}.ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  .ghost:hover{border-color:var(--accent)}button:disabled{opacity:.5;cursor:not-allowed}
+  .pill{display:inline-flex;align-items:center;gap:5px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:999px;padding:4px 11px;font-size:11.5px;color:var(--muted);margin-right:7px}
   .pill b{color:var(--text)}
-  #console{margin-top:18px;background:#0a0b10;border:1px solid var(--line);border-radius:12px;
-    padding:14px;font:12px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace;color:#cdd3e0;
-    max-height:230px;overflow:auto;display:none;white-space:pre-wrap}
-  #console .l{opacity:.9}#console .e{color:var(--crit)}
-  .sevline{margin-top:10px;display:none;gap:8px;flex-wrap:wrap}
-  .sev{border-radius:8px;padding:5px 10px;font-size:12px;font-weight:600}
-  .sev.Critical{background:rgba(248,113,113,.15);color:var(--crit)}
-  .sev.High{background:rgba(251,191,36,.15);color:var(--warn)}
-  .sev.none{background:rgba(52,211,153,.12);color:var(--ok)}
-  .foot{text-align:center;color:var(--muted);font-size:11px;margin-top:18px}
-  .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ok);margin-right:6px}
+  /* console */
+  .term{background:#06070c;border:1px solid var(--line);border-radius:11px;padding:13px 15px;margin-top:14px;
+    font:12px/1.6 ui-monospace,Menlo,monospace;max-height:240px;overflow:auto;white-space:pre-wrap;color:#cbd3e6}
+  .term .exec{color:var(--accent3)} .term .e{color:var(--crit)} .term .h{color:var(--muted)}
+  .term .ok{color:var(--ok)}
+  /* findings + activity */
+  .sevrow{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+  .sev{border-radius:8px;padding:5px 11px;font-size:12px;font-weight:700}
+  .sev.Critical{background:rgba(248,113,113,.16);color:var(--crit)} .sev.High{background:rgba(251,146,60,.16);color:var(--high)}
+  .sev.Medium{background:rgba(251,191,36,.15);color:var(--warn)} .sev.Low{background:rgba(34,211,238,.14);color:var(--accent3)}
+  .sev.none{background:rgba(52,211,153,.13);color:var(--ok)}
+  .find{border:1px solid var(--line);border-radius:11px;padding:14px;margin:10px 0;background:var(--panel2)}
+  .find h4{margin:0 0 6px;font-size:14px}.find .m{color:var(--muted);font-size:12px}
+  .find pre{background:#06070c;border-radius:7px;padding:9px;font-size:11.5px;overflow:auto;margin:7px 0}
+  .shot{max-width:100%;border:1px solid var(--line);border-radius:8px;margin-top:8px}
+  .activity{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+  .act{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:7px 10px;background:var(--panel2);
+    border:1px solid var(--line);border-radius:8px}
+  .badge{font-size:10px;padding:2px 7px;border-radius:5px;background:var(--line);color:var(--muted)}
+  .badge.run{background:rgba(139,92,246,.2);color:#c4b5fd}.badge.done{background:rgba(52,211,153,.16);color:var(--ok)}
+  /* agents list */
+  .alist{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+  .arow{display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid var(--line);font-size:13px}
+  .arow:last-child{border:0}.arow code{color:var(--accent2)}.arow .t{color:var(--muted);margin-left:auto;font-size:11.5px}
+  .kind{font-size:9.5px;padding:2px 6px;border-radius:4px;background:var(--line);color:var(--muted);text-transform:uppercase}
+  .kind.meta{background:rgba(34,211,238,.14);color:var(--accent3)}
+  /* chart */
+  .bar{display:flex;align-items:center;gap:10px;margin:5px 0;font-size:12px}
+  .bar .nm{width:190px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bar .track{flex:1;background:var(--panel2);border-radius:6px;height:16px;overflow:hidden;border:1px solid var(--line)}
+  .bar .fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:6px;transition:width .5s}
+  .bar .v{width:42px;text-align:right;color:var(--text)}
+  .muted{color:var(--muted);font-size:12.5px}
+  a{color:var(--accent2)}
+  .dl{display:inline-flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:8px;padding:8px 13px;margin:6px 8px 0 0;text-decoration:none;color:var(--text);font-size:12.5px}
+  .dl:hover{border-color:var(--accent)}
+  iframe{width:100%;height:520px;border:1px solid var(--line);border-radius:10px;background:#fff;margin-top:10px}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:5px}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div class="brand">
-    <div class="logo">N</div>
-    <div><h1>NeuroSploit <span style="color:var(--muted);font-weight:500">v3.3.0</span></h1></div>
-  </div>
-  <div class="sub">Autonomous MD-Agent pentest — enter a URL, pick a backend, run.</div>
+  <aside class="side">
+    <div class="brand"><div class="logo">N</div><div><b>NeuroSploit</b><span>v3.3.0 · MD-Agent Engine</span></div></div>
+    <div class="nav on" data-v="run"><span class="i">▶</span> Run</div>
+    <div class="nav" data-v="agents"><span class="i">⛓</span> Agents</div>
+    <div class="nav" data-v="insights"><span class="i">📊</span> Insights</div>
+    <div class="nav" data-v="reports"><span class="i">📄</span> Reports</div>
+    <div class="nav" data-v="settings"><span class="i">⚙</span> Settings · API</div>
+    <div class="sidefoot"><span class="dot"></span><span id="sf">loading…</span></div>
+  </aside>
 
-  <div class="card">
-    <div class="field">
-      <label for="url">Target URL</label>
-      <input id="url" type="text" placeholder="https://target.example" autocomplete="off" />
-    </div>
-
-    <div class="row">
-      <div class="field">
-        <label for="backend">Backend</label>
-        <select id="backend"></select>
+  <main>
+    <!-- RUN -->
+    <section class="view on" id="v-run">
+      <div class="head"><div><h1>Run engagement</h1><div class="sub">Autonomous, validated, false-positive-filtered.</div></div></div>
+      <div class="card">
+        <div class="field">
+          <label>Targets <span style="text-transform:none">(one URL per line — multi-target)</span></label>
+          <textarea id="targets" placeholder="https://target-one.example&#10;https://target-two.example"></textarea>
+        </div>
+        <div class="row">
+          <div class="field"><label>Backend (runtime)</label><select id="backend"></select></div>
+          <div class="field"><label>Provider</label><select id="provider"></select></div>
+          <div class="field"><label>Model</label><select id="model"></select></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>OOB collaborator (optional)</label><input id="collab" placeholder="oob.your-collab.net"/></div>
+          <div class="field"><label>Verbosity</label><select id="verbosity">
+            <option value="quiet">quiet</option><option value="normal" selected>normal</option>
+            <option value="verbose">verbose</option><option value="debug">debug</option></select></div>
+        </div>
+        <div class="toggles">
+          <label class="toggle on" id="t-rl"><input type="checkbox" id="rl" checked/> Reinforcement learning</label>
+          <label class="toggle on" id="t-mcp"><input type="checkbox" id="mcp" checked/> Playwright MCP + screenshots</label>
+        </div>
+        <div class="btns"><button class="run" id="go">▶ Run engagement</button><button class="ghost" id="dry">Dry run</button></div>
+        <div class="term" id="term" style="display:none"></div>
+        <div class="sevrow" id="sevrow" style="display:none"></div>
+        <div id="findings"></div>
       </div>
-      <div class="field">
-        <label for="model">Model</label>
-        <select id="model"></select>
+    </section>
+
+    <!-- AGENTS -->
+    <section class="view" id="v-agents">
+      <div class="head"><div><h1>Agent library</h1><div class="sub" id="agentsub">…</div></div></div>
+      <div class="card">
+        <div class="field"><input id="asearch" placeholder="🔎 filter agents by name / title / CWE"/></div>
+        <div class="alist" id="alist"></div>
       </div>
-    </div>
+      <div class="card">
+        <h1 style="font-size:15px;margin:0 0 4px">Add a new .md agent</h1>
+        <div class="hint">Dropped into <code>agents_md/vulns/</code> and orchestrated by the main agent on the next run.</div>
+        <div class="row" style="margin-top:12px">
+          <div class="field"><label>Name (slug)</label><input id="n-name" placeholder="my_custom_check"/></div>
+          <div class="field"><label>Title</label><input id="n-title" placeholder="My Custom Check Specialist"/></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Tests for</label><input id="n-for" placeholder="a custom vulnerability class"/></div>
+          <div class="field"><label>Severity</label><select id="n-sev"><option>Critical</option><option selected>High</option><option>Medium</option><option>Low</option></select></div>
+          <div class="field"><label>CWE</label><input id="n-cwe" placeholder="CWE-79"/></div>
+        </div>
+        <div class="field"><label>Methodology (markdown bullets)</label><textarea id="n-method" placeholder="- Step one with a real payload&#10;- Step two confirming exploitation"></textarea></div>
+        <div class="field"><label>System prompt (anti-false-positive rule)</label><textarea id="n-system" placeholder="Report only reproducible, proven findings with hard evidence."></textarea></div>
+        <div class="btns"><button class="run" id="addAgent">+ Add agent</button></div>
+        <div class="hint" id="addmsg"></div>
+      </div>
+    </section>
 
-    <div class="field">
-      <label for="collab">OOB collaborator <span style="text-transform:none">(optional)</span></label>
-      <input id="collab" type="text" placeholder="oob.your-collab.net" autocomplete="off" />
-    </div>
+    <!-- INSIGHTS -->
+    <section class="view" id="v-insights">
+      <div class="head"><div><h1>Insights</h1><div class="sub">Agent outputs &amp; reinforcement-learning weights.</div></div>
+        <button class="ghost" id="refreshChart">↻ refresh</button></div>
+      <div class="card">
+        <h1 style="font-size:15px;margin:0 0 10px">Findings by severity (last run)</h1>
+        <div class="sevrow" id="chartSev"><span class="muted">Run an engagement to populate.</span></div>
+      </div>
+      <div class="card">
+        <h1 style="font-size:15px;margin:0 0 4px">RL agent weights</h1>
+        <div class="hint">Higher = historically more productive. Updated after every run.</div>
+        <div id="chartRL" style="margin-top:12px"><span class="muted">No RL history yet.</span></div>
+      </div>
+    </section>
 
-    <div class="toggles">
-      <label class="toggle on" id="t-rl"><input type="checkbox" id="rl" checked /> Reinforcement learning</label>
-      <label class="toggle on" id="t-mcp"><input type="checkbox" id="mcp" checked /> Playwright MCP</label>
-    </div>
+    <!-- REPORTS -->
+    <section class="view" id="v-reports">
+      <div class="head"><div><h1>Reports</h1><div class="sub">PDF + HTML, generated via Typst.</div></div>
+        <button class="ghost" id="refreshReports">↻ refresh</button></div>
+      <div class="card">
+        <div id="reportList"><span class="muted">No reports yet — run an engagement.</span></div>
+        <div id="reportPreview"></div>
+      </div>
+    </section>
 
-    <div class="btns">
-      <button class="run" id="go">▶ Run engagement</button>
-      <button class="ghost" id="dry">Dry run</button>
-    </div>
-
-    <div class="meta" id="meta">
-      <span class="pill"><span class="dot"></span><b id="agentCount">…</b> agents</span>
-      <span class="pill"><b id="backendCount">…</b> backends</span>
-      <span class="pill">Playwright proof-of-exec</span>
-    </div>
-
-    <div class="sevline" id="sevline"></div>
-    <div id="console"></div>
-  </div>
-
-  <div class="foot">Authorized testing only · findings are validated &amp; false-positive-filtered before reporting</div>
-</div>
+    <!-- SETTINGS -->
+    <section class="view" id="v-settings">
+      <div class="head"><div><h1>Settings · API</h1><div class="sub">Execution mode, provider keys, orchestrator.</div></div></div>
+      <div class="card">
+        <div class="row">
+          <div class="field"><label>Execution mode</label><select id="s-mode">
+            <option value="cli">CLI backend (Claude/Codex/Grok)</option>
+            <option value="api">API (OpenAI-compatible providers)</option></select></div>
+          <div class="field"><label>Main orchestrator agent</label><select id="s-orch"></select></div>
+          <div class="field"><label>Default verbosity</label><select id="s-verbosity">
+            <option value="quiet">quiet</option><option value="normal" selected>normal</option>
+            <option value="verbose">verbose</option><option value="debug">debug</option></select></div>
+        </div>
+      </div>
+      <div class="card">
+        <h1 style="font-size:15px;margin:0 0 4px">Provider API keys</h1>
+        <div class="hint">Stored in memory for this session (only key presence is persisted to disk). Enables “via API” model use.</div>
+        <div id="keyfields" style="margin-top:12px"></div>
+        <div class="btns" style="margin-top:6px"><button class="run" id="saveCfg">Save settings</button></div>
+        <div class="hint" id="cfgmsg"></div>
+      </div>
+    </section>
+  </main>
 
 <script>
-const $ = s => document.querySelector(s);
-let INFO = null;
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+let INFO=null, AGENTS=[];
 
-function setToggle(id){ const c=$('#'+id), box=$('#t-'+id);
-  const sync=()=>box.classList.toggle('on',c.checked); c.addEventListener('change',sync); sync(); }
-setToggle('rl'); setToggle('mcp');
+/* nav */
+$$('.nav').forEach(n=>n.addEventListener('click',()=>{
+  $$('.nav').forEach(x=>x.classList.remove('on')); n.classList.add('on');
+  $$('.view').forEach(v=>v.classList.remove('on')); $('#v-'+n.dataset.v).classList.add('on');
+  if(n.dataset.v==='insights') loadChart();
+  if(n.dataset.v==='reports') loadReports();
+}));
+function setToggle(id){const c=$('#'+id),b=$('#t-'+id);const s=()=>b.classList.toggle('on',c.checked);c.onchange=s;s();}
+setToggle('rl');setToggle('mcp');
 
+/* models */
+function fillProviders(sel,kindFilter){
+  const ps=Object.entries(INFO.providers).filter(([k,p])=>!kindFilter||p.kind===kindFilter||kindFilter==='all');
+  sel.innerHTML=Object.entries(INFO.providers).map(([k,p])=>`<option value="${k}">${p.label} · ${p.kind.toUpperCase()}</option>`).join('');
+}
 function fillModels(){
-  const bk = $('#backend').value;
-  const prov = (INFO.backend_provider[bk]) || 'anthropic';
-  const ms = (INFO.providers[prov]||{}).models || [];
-  $('#model').innerHTML = ms.map(m=>`<option value="${m.id}">${m.label}</option>`).join('') || '<option value="">default</option>';
+  const prov=$('#provider').value, ms=(INFO.providers[prov]||{}).models||[];
+  $('#model').innerHTML=ms.map(m=>`<option value="${m.id}">${m.label}</option>`).join('')||'<option value="">default</option>';
 }
 
-async function loadInfo(){
-  INFO = await (await fetch('/api/info')).json();
-  $('#agentCount').textContent = INFO.agents.total;
-  $('#backendCount').textContent = INFO.backends.length;
-  const bsel = $('#backend');
-  bsel.innerHTML = INFO.backends.map(b=>`<option value="${b.key}">${b.label}</option>`).join('')
-                   || '<option value="claude">Claude Code</option>';
-  bsel.addEventListener('change', fillModels);
-  fillModels();
+async function init(){
+  INFO=await (await fetch('/api/info')).json();
+  $('#sf').textContent=`${INFO.agents.total} agents · ${INFO.backends.length} backends`;
+  $('#agentsub').textContent=`${INFO.agents.vulns} vuln specialists · ${INFO.agents.meta} meta-agents`;
+  const bsel=$('#backend');
+  bsel.innerHTML=INFO.backends.map(b=>`<option value="${b.key}">${b.label} · ${b.version}</option>`).join('')||'<option value="claude">Claude Code</option>';
+  fillProviders($('#provider'));
+  // default provider follows backend
+  const map=INFO.backend_provider; const setProv=()=>{const p=map[bsel.value]; if(p){$('#provider').value=p;} fillModels();};
+  bsel.onchange=setProv; $('#provider').onchange=fillModels; setProv();
+  // settings
+  $('#s-orch').innerHTML=INFO.orchestrators.map(o=>`<option ${o==='orchestrator'?'selected':''}>${o}</option>`).join('');
+  const kf=$('#keyfields');
+  kf.innerHTML=Object.entries(INFO.providers).filter(([k,p])=>p.env_keys.length).map(([k,p])=>
+    `<div class="field"><label>${p.label} <span style="text-transform:none">(${p.env_keys[0]})</span></label>
+     <input data-prov="${k}" type="password" placeholder="${(INFO.config.api_keys||{})[k]==='set'?'•••• saved':'paste key'}"/></div>`).join('');
+  const c=INFO.config||{}; if(c.mode)$('#s-mode').value=c.mode; if(c.verbosity)$('#s-verbosity').value=c.verbosity;
+  loadAgents();
 }
 
-function logLine(t, cls){ const c=$('#console'); c.style.display='block';
-  const d=document.createElement('div'); d.className=cls||'l'; d.textContent=t; c.appendChild(d); c.scrollTop=c.scrollHeight; }
-
+/* RUN */
+function logLine(t){const term=$('#term');term.style.display='block';const d=document.createElement('div');
+  d.className=t.startsWith('ERROR')?'e':t.startsWith('exec:')?'exec':t.startsWith('===')?'h':t.startsWith('✓')||t.includes('updated')?'ok':'';
+  d.textContent=t;term.appendChild(d);term.scrollTop=term.scrollHeight;}
+let seen=0;
 async function run(dry){
-  const url = $('#url').value.trim();
-  if(!url){ $('#url').focus(); $('#url').style.borderColor='var(--crit)'; return; }
-  $('#go').disabled=$('#dry').disabled=true;
-  $('#console').innerHTML=''; $('#sevline').style.display='none';
-  logLine((dry?'[dry-run] ':'')+'Starting engagement → '+url);
-  const body = { url, backend:$('#backend').value, model:$('#model').value,
-    collaborator:$('#collab').value.trim(), rl:$('#rl').checked, mcp:$('#mcp').checked, dry_run:!!dry };
-  const r = await (await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
-  if(r.error){ logLine('ERROR: '+r.error,'e'); $('#go').disabled=$('#dry').disabled=false; return; }
+  const targets=$('#targets').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!targets.length){$('#targets').focus();$('#targets').style.borderColor='var(--crit)';return;}
+  $('#go').disabled=$('#dry').disabled=true;$('#term').innerHTML='';$('#sevrow').style.display='none';$('#findings').innerHTML='';
+  logLine((dry?'[dry-run] ':'')+'Queued '+targets.length+' target(s)');
+  const body={targets,backend:$('#backend').value,provider:$('#provider').value,model:$('#model').value,
+    collaborator:$('#collab').value.trim(),verbosity:$('#verbosity').value,mode:$('#s-mode').value,
+    rl:$('#rl').checked,mcp:$('#mcp').checked,dry_run:!!dry};
+  const r=await (await fetch('/api/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  if(r.error){logLine('ERROR: '+r.error);$('#go').disabled=$('#dry').disabled=false;return;}
   poll(r.run_id);
 }
-
-let seen=0;
 async function poll(id){
-  const st = await (await fetch('/api/status/'+id)).json();
-  (st.log||[]).slice(seen).forEach(l=>logLine(l, l.startsWith('ERROR')?'e':'l'));
-  seen = (st.log||[]).length;
-  if(!st.done){ setTimeout(()=>poll(id),700); return; }
-  seen=0; $('#go').disabled=$('#dry').disabled=false;
-  const res=st.result||{};
-  const sl=$('#sevline'); sl.style.display='flex';
-  if(res.error){ sl.innerHTML='<span class="sev Critical">error</span>'; return; }
-  const f=res.findings||[]; const by={};
-  f.forEach(x=>by[x.severity]=(by[x.severity]||0)+1);
-  sl.innerHTML = f.length ? Object.entries(by).map(([k,v])=>`<span class="sev ${k}">${k}: ${v}</span>`).join('')
-                          : '<span class="sev none">✓ run complete — '+ (res.agents_ran||[]).length +' agents, 0 validated findings</span>';
+  const st=await (await fetch('/api/status/'+id)).json();
+  (st.log||[]).slice(seen).forEach(logLine);seen=(st.log||[]).length;
+  if(!st.done){setTimeout(()=>poll(id),650);return;}
+  seen=0;$('#go').disabled=$('#dry').disabled=false;const res=st.result||{};
+  renderFindings(res);
 }
+function renderFindings(res){
+  const sr=$('#sevrow');sr.style.display='flex';
+  if(res.error){sr.innerHTML='<span class="sev Critical">error: '+res.error+'</span>';return;}
+  const f=res.findings||[],by={};f.forEach(x=>by[x.severity]=(by[x.severity]||0)+1);
+  sr.innerHTML=f.length?Object.entries(by).map(([k,v])=>`<span class="sev ${k}">${k}: ${v}</span>`).join('')
+    :`<span class="sev none">✓ complete — ${(res.agents_ran||[]).length} agents ran, 0 validated findings</span>`;
+  let html='';
+  if((res.activity||[]).length){html+='<div class="card" style="margin-top:14px"><label>Tasks executed</label><div class="activity">'+
+    res.activity.slice(0,40).map(a=>`<div class="act"><span class="badge ${a.status==='done'?'done':'run'}">${a.status||'·'}</span><code>${a.agent||''}</code><span class="m">${a.note||''}</span></div>`).join('')+'</div></div>';}
+  html+=f.map(x=>`<div class="find"><h4><span class="sev ${x.severity}" style="font-size:11px">${x.severity}</span> ${x.title||''}</h4>
+    <div class="m">${x.agent||''} · ${x.cwe||''} · CVSS ${x.cvss||'?'} · ${x.endpoint||''}</div>
+    ${x.payload?`<pre>${(x.payload+'').replace(/</g,'&lt;')}</pre>`:''}
+    ${x.evidence?`<div class="m">Evidence: ${x.evidence}</div>`:''}
+    ${x.screenshot?`<img class="shot" src="/shots/${encodeURIComponent((x.target||'').replace(/https?:\/\//,'').replace(/[^a-z0-9]/gi,'_').slice(0,60))}/${x.screenshot.replace(/^.*shots\//,'')}" onerror="this.style.display='none'"/>`:''}
+    </div>`).join('');
+  if(res.reports&&res.reports.html){html+=`<div class="hint" style="margin-top:10px">Report ready → see the <b>Reports</b> tab.</div>`;}
+  $('#findings').innerHTML=html;
+}
+$('#go').onclick=()=>run(false);$('#dry').onclick=()=>run(true);
+$('#targets').oninput=()=>$('#targets').style.borderColor='';
 
-$('#go').addEventListener('click',()=>run(false));
-$('#dry').addEventListener('click',()=>run(true));
-$('#url').addEventListener('input',()=>$('#url').style.borderColor='');
-loadInfo();
+/* AGENTS */
+async function loadAgents(){AGENTS=(await (await fetch('/api/agents')).json()).agents;renderAgents();}
+function renderAgents(){
+  const q=$('#asearch').value.toLowerCase();
+  const rows=AGENTS.filter(a=>!q||(a.name+a.title+a.cwe).toLowerCase().includes(q));
+  $('#alist').innerHTML=rows.slice(0,400).map(a=>`<div class="arow"><span class="kind ${a.kind}">${a.kind}</span>
+    <code>${a.name}</code> <span class="t">${a.title.replace(' Agent','')} ${a.cwe?'· '+a.cwe:''}</span></div>`).join('')
+    ||'<div class="arow muted">no match</div>';
+}
+$('#asearch').oninput=renderAgents;
+$('#addAgent').onclick=async()=>{
+  const body={name:$('#n-name').value,title:$('#n-title').value,for:$('#n-for').value,
+    severity:$('#n-sev').value,cwe:$('#n-cwe').value,methodology:$('#n-method').value,system:$('#n-system').value};
+  const r=await (await fetch('/api/agents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  $('#addmsg').textContent=r.error?('✗ '+r.error):('✓ created '+r.agent.path);
+  if(!r.error){$('#n-name').value='';await loadAgents();const i=await(await fetch('/api/info')).json();$('#sf').textContent=`${i.agents.total} agents · ${i.backends.length} backends`;}
+};
+
+/* INSIGHTS */
+async function loadChart(){
+  const rl=await (await fetch('/api/rl')).json();
+  const rows=(rl.agents||[]).slice(0,18);
+  $('#chartRL').innerHTML=rows.length?rows.map(a=>`<div class="bar"><span class="nm">${a.name}</span>
+    <span class="track"><span class="fill" style="width:${Math.round(a.weight*100)}%"></span></span>
+    <span class="v">${a.weight.toFixed(2)}</span></div>`).join(''):'<span class="muted">No RL history yet — run an engagement.</span>';
+}
+$('#refreshChart').onclick=loadChart;
+
+/* REPORTS */
+async function loadReports(){
+  const r=await (await fetch('/api/reports')).json();
+  const list=$('#reportList');
+  if(!(r.reports||[]).length){list.innerHTML='<span class="muted">No reports yet — run an engagement.</span>';$('#reportPreview').innerHTML='';return;}
+  list.innerHTML=r.reports.map(f=>`<a class="dl" href="${f.url}" target="_blank">⬇ ${f.name} <span class="muted">(${(f.size/1024).toFixed(1)} KB)</span></a>`).join('');
+  const html=r.reports.find(f=>f.name.endsWith('.html'));
+  $('#reportPreview').innerHTML=html?`<iframe src="${html.url}"></iframe>`:'';
+}
+$('#refreshReports').onclick=loadReports;
+
+/* SETTINGS */
+$('#saveCfg').onclick=async()=>{
+  const keys={};$$('#keyfields input').forEach(i=>{if(i.value.trim())keys[i.dataset.prov]=i.value.trim();});
+  const body={mode:$('#s-mode').value,orchestrator:$('#s-orch').value,verbosity:$('#s-verbosity').value,api_keys:keys};
+  const r=await (await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json();
+  $('#cfgmsg').textContent=r.ok?'✓ saved':'✗ '+(r.error||'failed');
+  $('#verbosity').value=$('#s-verbosity').value;
+};
+
+init();
 </script>
 </body>
 </html>

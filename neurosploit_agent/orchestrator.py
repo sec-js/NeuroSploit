@@ -12,7 +12,7 @@ import json
 import os
 from typing import Dict, List, Optional
 
-from . import backends, mcp, models
+from . import backends, mcp, models, report
 from .agent_loader import AgentLibrary
 from .config import RunConfig, PATHS, ensure_dirs
 from .rl import RLEngine, outcomes_from_findings
@@ -70,11 +70,19 @@ and follow its methodology and (strict) anti-false-positive System Prompt.
 6. `meta/reporter.md` → write `results/findings.json` AND `reports/report.md`.
 7. `meta/rl_feedback.md` → write/merge `data/rl_state.json`.
 
+## Evidence: screenshots (MANDATORY for confirmed findings)
+For every confirmed finding, use Playwright MCP to capture a screenshot proving
+the issue (e.g. the executed XSS alert/DOM, the exposed data, the error oracle).
+Save it under `{cfg.resolved_workdir()}/shots/<finding-id>.png` and record that
+relative path in the finding's `screenshot` field.
+
 ## Output contract (MANDATORY)
 Write `results/findings.json` as a JSON array of objects:
-{{"id","agent","title","severity","cvss","cwe","endpoint","payload","evidence","impact","remediation","confidence","validated"}}
+{{"id","agent","title","severity","cvss","cwe","endpoint","payload","evidence","impact","remediation","confidence","validated","screenshot"}}
 Only include findings with `validated: true`. If you find nothing, write `[]`.
-Also write `results/agents_ran.json` as a JSON array of the agent names you executed.
+Also write `results/agents_ran.json` as a JSON array of the agent names you executed,
+and `results/activity.json` as an array of `{{"agent","status","note"}}` task records
+so the dashboard can show what was executed.
 
 Stay strictly in scope. Never run destructive/DoS payloads unless ROE permits.
 Report ONLY proven, reproducible findings.
@@ -83,23 +91,19 @@ Report ONLY proven, reproducible findings.
 
 
 def collect_results(workdir: str) -> Dict:
-    findings, ran = [], []
-    fpath = os.path.join(workdir, "findings.json")
-    rpath = os.path.join(workdir, "agents_ran.json")
+    collected = {"findings": [], "agents_ran": [], "activity": []}
+    files = {"findings.json": "findings", "agents_ran.json": "agents_ran",
+             "activity.json": "activity"}
     # The backend may write under results/<slug>/ or results/ — check both.
     for base in (workdir, PATHS["results"]):
-        for name, sink in (("findings.json", "findings"), ("agents_ran.json", "ran")):
+        for name, sink in files.items():
             p = os.path.join(base, name)
-            if os.path.exists(p):
+            if not collected[sink] and os.path.exists(p):
                 try:
-                    data = json.load(open(p, encoding="utf-8"))
-                    if sink == "findings" and not findings:
-                        findings = data
-                    elif sink == "ran" and not ran:
-                        ran = data
+                    collected[sink] = json.load(open(p, encoding="utf-8"))
                 except Exception:
                     pass
-    return {"findings": findings, "agents_ran": ran}
+    return collected
 
 
 def run_engagement(cfg: RunConfig, recon: Optional[dict] = None,
@@ -131,13 +135,23 @@ def run_engagement(cfg: RunConfig, recon: Optional[dict] = None,
     progress(f"Launching {backend.label} ({cfg.model}) — autonomous={cfg.autonomous}")
     res = backends.run(backend, prompt, workdir, model=cfg.model,
                        autonomous=cfg.autonomous, mcp_config=mcp_cfg, env=env,
-                       timeout=cfg.timeout, dry_run=cfg.dry_run)
+                       timeout=cfg.timeout, dry_run=cfg.dry_run,
+                       on_start=lambda argv: progress("exec: " + " ".join(argv)))
     progress(f"Backend exited rc={res.returncode}; log: {res.log_path}")
 
     out = collect_results(workdir)
     findings = out["findings"] or []
     ran = out["agents_ran"] or []
+    activity = out["activity"] or []
     progress(f"Collected {len(findings)} validated finding(s) from {len(ran)} agent(s)")
+
+    reports = {}
+    if not cfg.dry_run:
+        try:
+            reports = report.generate(cfg.target, findings, PATHS["reports"])
+            progress("Report generated: " + ", ".join(k for k in reports if not k.endswith("_error")))
+        except Exception as e:
+            progress(f"Report generation skipped: {e}")
 
     if cfg.use_rl and not cfg.dry_run:
         tech = ((recon or {}).get("tech", {}) or {}).get("framework", "") or None
@@ -147,4 +161,5 @@ def run_engagement(cfg: RunConfig, recon: Optional[dict] = None,
         progress("RL state updated → data/rl_state.json")
 
     return {"workdir": workdir, "returncode": res.returncode,
-            "findings": findings, "agents_ran": ran, "log": res.log_path}
+            "findings": findings, "agents_ran": ran, "activity": activity,
+            "reports": reports, "log": res.log_path}

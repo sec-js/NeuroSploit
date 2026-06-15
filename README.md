@@ -114,18 +114,28 @@ data-driven builder, `scripts/build_agents.py`). It is picked up automatically.
 Outputs land in `results/<target>/findings.json` and `reports/`, and the RL
 state updates in `data/rl_state.json`.
 
-### Minimalist web GUI
+### Web dashboard
 
-A zero-dependency (Python stdlib only) web front-end exposes just the essential
-options — target URL, backend, model, collaborator, and the RL / Playwright-MCP
-toggles — and launches an engagement with a live progress console:
+A zero-dependency (Python stdlib only) dashboard — no npm, no build step:
 
 ```bash
 python3 webgui/server.py        # → http://127.0.0.1:8787
 ```
 
-No npm, no build step. It calls `neurosploit_agent` directly. (The previous heavy
-React app remains under `frontend/` but is no longer the primary interface.)
+Tabs:
+- **Run** — multi-target input, backend + provider + model pickers (40 models
+  across CLI and API providers), verbosity, RL/MCP toggles, a live execution
+  console (shows the exact backend command and per-task activity), and findings
+  with screenshots.
+- **Agents** — browse all 213 agents and **add new `.md` agents** from the UI;
+  the main orchestrator picks them up on the next run.
+- **Insights** — interactive chart of RL agent weights + findings by severity.
+- **Reports** — download/preview the **PDF + HTML** reports (Typst engine).
+- **Settings · API** — execution mode (CLI vs API), per-provider API keys,
+  orchestrator selection, default verbosity.
+
+It calls `neurosploit_agent` directly. The previous React app and FastAPI backend
+were retired to `legacy/` (`frontend_react/`, `backend_fastapi/`).
 
 ### Backends
 

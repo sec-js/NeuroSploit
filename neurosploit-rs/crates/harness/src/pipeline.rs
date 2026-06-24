@@ -11,6 +11,7 @@ use tokio::sync::mpsc::Sender;
 /// Result of an engagement run.
 #[derive(Default, Serialize)]
 pub struct RunOutput {
+    pub target: String,
     pub findings: Vec<Finding>,
     pub agents_ran: Vec<String>,
     pub candidates: usize,
@@ -19,7 +20,28 @@ pub struct RunOutput {
     pub artifacts: Vec<String>,
 }
 
-const RECON_SYS: &str = "You are a web recon specialist. Map the target's attack surface and reply with a compact JSON object (tech, endpoints, auth, apis, ai_features). No prose.";
+const RECON_SYS: &str = "You are a web recon specialist on an AUTHORIZED engagement. You have shell tools (curl etc.) — actively fetch the target, enumerate pages/params, and map the real attack surface. Do not ask for permission; proceed. Reply with a compact JSON object (tech, endpoints, params, auth, apis). No prose.";
+
+/// Tool-usage doctrine prepended to recon/exploit prompts so the agent knows
+/// exactly what it may use. Best run on Kali Linux (or the Kali Docker image),
+/// where these tools are preinstalled.
+fn tool_doctrine(mcp_on: bool) -> String {
+    let browser = if mcp_on {
+        "A Playwright MCP browser IS available — use it for JS-heavy pages, DOM/JS execution, and to PROVE client-side issues (e.g. XSS firing); capture screenshots as evidence."
+    } else {
+        "No browser MCP is available — use `curl` (and `wget`) for all HTTP interaction; render/inspect responses directly."
+    };
+    format!(
+        "TOOLING (authorized; best on Kali Linux or the kalilinux/kali-rolling Docker image):\n\
+         - HTTP: `curl` (headers, methods, params, cookies), `wget`.\n\
+         - Ports/services: `rustscan` if present, else `nmap`; if neither is installed you may \
+           install via apt (`apt install -y nmap`), brew, or cargo (`cargo install rustscan`) — \
+           otherwise probe common ports with `curl`/`nc`.\n\
+         - Content/params: `ffuf`, `gobuster`, `gau`, `katana` when available.\n\
+         - {browser}\n\
+         Use only what is installed; degrade gracefully. Never run destructive or DoS actions.\n\n"
+    )
+}
 const VOTE_SYS: &str = "You are an adversarial security validator. Decide if the candidate finding is a REAL, reproducible, exploitable vulnerability with proof. Reply with JSON {\"verdict\":\"confirmed\"|\"rejected\",\"reason\":\"...\"}. Default to rejected when uncertain.";
 const CODE_VOTE_SYS: &str = "You are an adversarial source-code reviewer. Decide if the reported issue is a REAL vulnerability in the provided code (reachable, exploitable, not a false positive). Reply JSON {\"verdict\":\"confirmed\"|\"rejected\",\"reason\":\"...\"}.";
 
@@ -40,9 +62,14 @@ pub async fn run(cfg: RunConfig, lib: &Library, pool: &ModelPool, tx: Sender<Str
         let _ = tx.send("recon: offline mode — skipping model calls".into()).await;
         "{}".to_string()
     } else {
-        match pool.complete(RECON_SYS, &format!("Target: {}", cfg.target)).await {
+        let recon_user = format!("{}Target: {}", tool_doctrine(pool.mcp_config.is_some()), cfg.target);
+        match pool.complete(RECON_SYS, &recon_user).await {
             Ok((m, t)) => {
                 let _ = tx.send(format!("recon complete via {}", m.label())).await;
+                if cfg.verbose {
+                    let snip: String = t.chars().take(280).collect();
+                    let _ = tx.send(format!("  recon> {}", snip.replace('\n', " "))).await;
+                }
                 t
             }
             Err(e) => {
@@ -63,22 +90,24 @@ pub async fn run(cfg: RunConfig, lib: &Library, pool: &ModelPool, tx: Sender<Str
         let _ = tx.send(format!("selected {} specialist agents (RL-ranked)", selected.len())).await;
         let _ = tx.send("offline: no exploitation performed (provide API keys or --subscription to run live)".into()).await;
         let artifacts = persist(&cfg, &recon, "", &[]);
-        return RunOutput { findings: vec![], agents_ran: selected.iter().map(|a| a.name.clone()).collect(), candidates: 0, recon, artifacts };
+        return RunOutput { target: cfg.target.clone(), findings: vec![], agents_ran: selected.iter().map(|a| a.name.clone()).collect(), candidates: 0, recon, artifacts };
     }
 
     // Use the model to pick the agents whose preconditions match the recon —
     // the harness reasons about *which* specialists to run, not all of them.
     let chosen = select_agents(pool, &recon, &ranked, &tx).await;
-    let selected: Vec<Agent> = {
-        let mut sel: Vec<Agent> = if chosen.is_empty() {
-            ranked.clone()
-        } else {
-            ranked.iter().filter(|a| chosen.iter().any(|c| c == &a.name)).cloned().collect()
-        };
+    let selected: Vec<Agent> = if !chosen.is_empty() {
+        let sel: Vec<Agent> =
+            ranked.iter().filter(|a| chosen.iter().any(|c| c == &a.name)).cloned().collect();
         if sel.is_empty() {
-            sel = ranked.clone();
+            heuristic_select(&ranked, &recon, cap)
+        } else {
+            sel.into_iter().take(cap).collect()
         }
-        sel.into_iter().take(cap).collect()
+    } else {
+        // LLM selection failed/empty → recon-keyword heuristic, not a blind flat list.
+        let _ = tx.send("selection empty — using recon-keyword heuristic".into()).await;
+        heuristic_select(&ranked, &recon, cap)
     };
     let _ = tx
         .send(format!("intelligently selected {} agent(s) matching recon: {}", selected.len(),
@@ -87,6 +116,8 @@ pub async fn run(cfg: RunConfig, lib: &Library, pool: &ModelPool, tx: Sender<Str
 
     // ---- 3. Exploit (parallel) -----------------------------------------
     let target = cfg.target.clone();
+    let verbose = cfg.verbose;
+    let mcp_on = pool.mcp_config.is_some();
     let raw: Vec<(String, String, Vec<Finding>)> = stream::iter(selected.iter().cloned())
         .map(|ag| {
             let target = target.clone();
@@ -94,10 +125,18 @@ pub async fn run(cfg: RunConfig, lib: &Library, pool: &ModelPool, tx: Sender<Str
             let txc = tx.clone();
             async move {
                 let user = format!(
-                    "{}\n\nReply ONLY with a JSON array of confirmed findings (may be empty []). \
-                     Each item: {{id,title,severity,cwe,endpoint,payload,evidence,impact,remediation,confidence}}.",
-                    ag.user.replace("{target}", &target).replace("{recon_json}", &recon)
+                    "AUTHORIZED engagement — you have explicit permission to test {target}. \
+                     Do not ask for confirmation — proceed and PROVE each issue.\n\n\
+                     {doctrine}{body}\n\nWhen done, reply with ONLY a JSON array of confirmed findings (may be empty []). \
+                     Each item: {{id,title,severity,cwe,endpoint,payload,evidence,impact,remediation,confidence}}. \
+                     `evidence` must contain the concrete proof (request/response excerpt).",
+                    target = target,
+                    doctrine = tool_doctrine(mcp_on),
+                    body = ag.user.replace("{target}", &target).replace("{recon_json}", &recon),
                 );
+                if verbose {
+                    let _ = txc.send(format!("  ▶ launching agent: {} ({})", ag.name, ag.title.replace(" Agent", ""))).await;
+                }
                 match pool.complete(&ag.system, &user).await {
                     Ok((m, text)) => {
                         let f = extract_findings(&text, &ag.name);
@@ -145,7 +184,7 @@ pub async fn run_whitebox(cfg: RunConfig, lib: &Library, pool: &ModelPool, tx: S
 
     if cfg.offline || bytes == 0 {
         let artifacts = persist(&cfg, "{}", &context, &[]);
-        return RunOutput { findings: vec![], agents_ran: selected.iter().map(|a| a.name.clone()).collect(), candidates: 0, recon: String::new(), artifacts };
+        return RunOutput { target: cfg.target.clone(), findings: vec![], agents_ran: selected.iter().map(|a| a.name.clone()).collect(), candidates: 0, recon: String::new(), artifacts };
     }
 
     let raw: Vec<(String, String, Vec<Finding>)> = stream::iter(selected.iter().cloned())
@@ -200,7 +239,12 @@ async fn select_agents(pool: &ModelPool, recon: &str, catalog: &[Agent], tx: &Se
     match pool.complete(SELECT_SYS, &user).await {
         Ok((m, text)) => {
             let names = parse_string_array(&text);
-            let _ = tx.send(format!("agent selection via {} → {} agent(s) chosen", m.label(), names.len())).await;
+            if names.is_empty() {
+                let preview: String = text.chars().take(120).collect();
+                let _ = tx.send(format!("agent selection via {} returned no parseable list ({} chars): {}", m.label(), text.len(), preview.replace('\n', " "))).await;
+            } else {
+                let _ = tx.send(format!("agent selection via {} → {} agent(s) chosen", m.label(), names.len())).await;
+            }
             names
         }
         Err(e) => {
@@ -217,16 +261,88 @@ fn parse_string_array(text: &str) -> Vec<String> {
     }
 }
 
+/// Fallback agent selection when the LLM selector fails: score each agent by
+/// keyword overlap between its name/title and the recon text, always seed a
+/// black-box baseline of high-yield web classes, and take the top `cap`.
+fn heuristic_select(ranked: &[Agent], recon: &str, cap: usize) -> Vec<Agent> {
+    const BASELINE: &[&str] = &[
+        "sqli_error", "sqli_blind", "sqli_union", "xss_reflected", "xss_stored", "xss_dom",
+        "command_injection", "lfi", "path_traversal", "ssrf", "idor", "open_redirect",
+        "auth_bypass", "csrf", "ssti", "file_upload", "xxe", "information_disclosure",
+        "security_headers", "cors_misconfig",
+    ];
+    let r = recon.to_lowercase();
+    // Recon signal → agent-name substrings. Only agents whose surface the recon
+    // actually identified get the signal boost; the rest rely on the baseline.
+    let signals: &[(&str, &[&str])] = &[
+        ("graphql", &["graphql"]),
+        ("jwt", &["jwt"]),
+        ("oauth", &["oauth", "oidc", "saml"]),
+        ("\"jwt\"", &["jwt"]),
+        ("api", &["api_", "bola", "bfla", "idor", "mass_assign", "rate_limit"]),
+        ("upload", &["file_upload", "zip_slip"]),
+        ("websocket", &["websocket"]),
+        ("\"ws\"", &["websocket"]),
+        ("graphql", &["graphql"]),
+        ("aws", &["aws_", "s3_", "imds", "cloud_"]),
+        ("gcp", &["gcp_", "gcs_", "metadata"]),
+        ("azure", &["azure_"]),
+        ("kubernetes", &["k8s_", "kubelet"]),
+        ("docker", &["docker_", "container_"]),
+        ("ai_features", &["llm_", "prompt_injection", "rag", "vector_db"]),
+        ("chat", &["llm_", "prompt_injection"]),
+        ("jinja", &["ssti"]),
+        ("flask", &["ssti", "ssrf", "command_injection"]),
+        ("php", &["lfi", "rfi", "sqli", "command_injection"]),
+        ("template", &["ssti", "csti"]),
+        ("redirect", &["open_redirect"]),
+        ("login", &["auth_bypass", "brute_force", "sqli", "default_credentials"]),
+        ("search", &["xss", "sqli"]),
+        ("cache", &["cache", "smuggl"]),
+    ];
+    let mut scored: Vec<(i32, &Agent)> = ranked
+        .iter()
+        .map(|a| {
+            let mut score = 0;
+            if BASELINE.contains(&a.name.as_str()) {
+                score += 4;
+            }
+            // recon-signal mapping: boost agents matching identified surface
+            for (sig, names) in signals {
+                if r.contains(sig) && names.iter().any(|n| a.name.contains(n)) {
+                    score += 6;
+                }
+            }
+            // direct keyword overlap with recon text
+            for tok in a.name.split('_') {
+                if tok.len() >= 4 && r.contains(tok) {
+                    score += 2;
+                }
+            }
+            (score, a)
+        })
+        .collect();
+    scored.sort_by(|x, y| y.0.cmp(&x.0));
+    let mut out: Vec<Agent> = scored.iter().filter(|(s, _)| *s > 0).map(|(_, a)| (*a).clone()).collect();
+    if out.is_empty() {
+        out = ranked.to_vec();
+    }
+    out.into_iter().take(cap).collect()
+}
+
 async fn validate(candidates: Vec<Finding>, pool: &ModelPool, sys: &str, vote_n: usize, tx: &Sender<String>) -> Vec<Finding> {
+    // Prefer a model other than the primary (likely finder) to adjudicate.
+    let finder = pool.candidates.first().map(|m| m.label());
     let validated: Vec<Finding> = stream::iter(candidates.into_iter())
         .map(|mut f| {
             let txc = tx.clone();
+            let finder = finder.clone();
             async move {
                 let q = format!(
                     "Finding: {} | severity {} | {} | at {} | payload {} | evidence {}",
                     f.title, f.severity, f.cwe, f.endpoint, f.payload, f.evidence
                 );
-                let (yes, total) = pool.vote(sys, &q, vote_n).await;
+                let (yes, total) = pool.vote(sys, &q, vote_n, finder.as_deref()).await;
                 f.validated = total > 0 && yes * 2 >= total;
                 f.votes = format!("{yes}/{total}");
                 if f.confidence == 0.0 && total > 0 {
@@ -268,6 +384,7 @@ async fn finish(cfg: RunConfig, _lib: &Library, recon: String, transcript: Strin
     }
 
     RunOutput {
+        target: cfg.target.clone(),
         candidates: findings.len(),
         findings,
         agents_ran: selected.iter().map(|a| a.name.clone()).collect(),

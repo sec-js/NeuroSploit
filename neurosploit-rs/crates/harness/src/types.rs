@@ -80,6 +80,9 @@ pub struct RunConfig {
     /// Path to the RL reward state file.
     #[serde(default)]
     pub rl_path: Option<String>,
+    /// Verbose: log each agent as it launches, recon snippet, and votes.
+    #[serde(default)]
+    pub verbose: bool,
 }
 
 fn default_vote() -> usize {
@@ -101,6 +104,7 @@ impl RunConfig {
             subscription: false,
             workdir: None,
             rl_path: None,
+            verbose: false,
         }
     }
 }

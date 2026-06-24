@@ -1,4 +1,9 @@
 use crate::types::Finding;
+use std::path::{Path, PathBuf};
+
+/// The blank, structured Typst template (rendering logic). Data (`meta`,
+/// `findings`) is prepended by `typst_report` to make a self-contained file.
+const TYPST_TEMPLATE: &str = include_str!("../../../templates/report.typ");
 
 fn sev_rank(s: &str) -> u8 {
     match s {
@@ -74,9 +79,70 @@ pub fn html(target: &str, findings: &[Finding]) -> String {
          h4{{margin:12px 0 3px;font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:#8b5cf6}}\
          .b{{color:#8b5cf6;font-weight:800}}</style></head><body>\
          <h1><span class=b>NeuroSploit</span> Penetration Test Report</h1>\
-         <div class=meta>Target: <b>{t}</b> · v3.4.0 Rust harness · multi-model validated</div>\
+         <div class=meta>Target: <b>{t}</b> · v3.4.1 Rust harness · multi-model validated</div>\
          <div>{chips}</div><h2>Findings ({n})</h2>{body}\
          <p class=meta>Authorized testing only. Findings confirmed by multi-model adversarial voting.</p></body></html>",
         t = esc(target), chips = chips, n = sorted.len(), body = body,
     )
+}
+
+// ===== Typst report =====
+
+/// Is the `typst` binary available on PATH?
+fn typst_available() -> bool {
+    std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).any(|d| d.join("typst").is_file()))
+        .unwrap_or(false)
+}
+
+fn sorted_findings(findings: &[Finding]) -> Vec<Finding> {
+    let mut v = findings.to_vec();
+    v.sort_by_key(|f| sev_rank(&f.severity));
+    v
+}
+
+/// Escape a string for embedding inside a Typst `"..."` literal (single line).
+fn tq(s: &str) -> String {
+    let cleaned: String = s.replace('\\', "\\\\").replace('"', "\\\"").replace(['\n', '\r'], " ");
+    format!("\"{}\"", cleaned)
+}
+
+/// Generate a self-contained `report.typ` (data + bundled template) in `dir`
+/// and compile it to `report.pdf` via the `typst` binary. Falls back to leaving
+/// the `.typ` when `typst` is unavailable.
+pub fn typst_report(target: &str, findings: &[Finding], dir: &Path) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(dir)?;
+    let run_id = dir.file_name().and_then(|s| s.to_str()).unwrap_or("run").to_string();
+
+    let mut data = String::new();
+    data.push_str(&format!(
+        "#let meta = (target: {}, run_id: {}, generated: {}, model: {})\n",
+        tq(target), tq(&run_id), tq("NeuroSploit v3.4.1"), tq("multi-model")
+    ));
+    data.push_str("#let findings = (\n");
+    for f in sorted_findings(findings) {
+        data.push_str(&format!(
+            "  (severity: {}, title: {}, agent: {}, cwe: {}, cvss: {}, endpoint: {}, payload: {}, evidence: {}, impact: {}, remediation: {}, votes: {}, confidence: {}),\n",
+            tq(&f.severity), tq(&f.title), tq(&f.agent), tq(&f.cwe), tq(&f.cvss),
+            tq(&f.endpoint), tq(&f.payload), tq(&f.evidence), tq(&f.impact),
+            tq(&f.remediation), tq(&f.votes), f.confidence,
+        ));
+    }
+    data.push_str(")\n\n");
+
+    let typ_path = dir.join("report.typ");
+    std::fs::write(&typ_path, format!("{data}{TYPST_TEMPLATE}"))?;
+
+    if typst_available() {
+        let pdf_path = dir.join("report.pdf");
+        match std::process::Command::new("typst")
+            .arg("compile").arg(&typ_path).arg(&pdf_path).output()
+        {
+            Ok(o) if o.status.success() && pdf_path.exists() => return Ok(pdf_path),
+            Ok(o) => eprintln!("typst compile failed: {}",
+                String::from_utf8_lossy(&o.stderr).lines().next().unwrap_or("").trim()),
+            Err(e) => eprintln!("typst not runnable: {e}"),
+        }
+    }
+    Ok(typ_path)
 }

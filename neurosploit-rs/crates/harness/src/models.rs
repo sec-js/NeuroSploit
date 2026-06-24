@@ -146,20 +146,23 @@ impl ChatClient {
         let mut cmd = Command::new(bin);
         match bin {
             // Claude Code headless print mode (uses the Claude subscription login).
+            // Tool autonomy is always enabled so the agent can use its built-in
+            // tools (Bash/curl/etc.) to actually probe the target — Playwright MCP
+            // is an *optional* add-on, not a requirement.
             "claude" => {
-                cmd.arg("-p").arg("--model").arg(model);
+                cmd.arg("-p").arg("--model").arg(model).arg("--dangerously-skip-permissions");
+                // Required to allow tool autonomy when running as root.
+                cmd.env("IS_SANDBOX", "1");
                 if let Some(mcp) = mcp_config {
-                    cmd.arg("--mcp-config").arg(mcp).arg("--dangerously-skip-permissions");
-                    // Required to allow tool autonomy when running as root.
-                    cmd.env("IS_SANDBOX", "1");
+                    cmd.arg("--mcp-config").arg(mcp);
                 }
             }
             // Codex non-interactive exec (uses the ChatGPT/Codex login), prompt on stdin.
             "codex" => {
-                cmd.arg("exec").arg("--model").arg(model);
+                cmd.arg("exec").arg("--model").arg(model)
+                    .arg("--dangerously-bypass-approvals-and-sandbox");
                 if let Some(mcp) = mcp_config {
-                    cmd.arg("--config").arg(format!("mcp_config_file={mcp}"))
-                        .arg("--dangerously-bypass-approvals-and-sandbox");
+                    cmd.arg("--config").arg(format!("mcp_config_file={mcp}"));
                 }
                 cmd.arg("-");
             }
@@ -173,13 +176,17 @@ impl ChatClient {
             }
             _ => {}
         }
-        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
+        cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped()).kill_on_drop(true);
         let mut child = cmd.spawn().map_err(|e| anyhow!("spawn {} failed: {}", bin, e))?;
         if let Some(mut stdin) = child.stdin.take() {
             stdin.write_all(prompt.as_bytes()).await?;
             // Drop closes stdin so the CLI processes the prompt and exits.
         }
-        let out = child.wait_with_output().await?;
+        // Cap a single agentic CLI turn so a stuck tool-loop can't hang the run.
+        let out = match tokio::time::timeout(Duration::from_secs(600), child.wait_with_output()).await {
+            Ok(r) => r?,
+            Err(_) => return Err(anyhow!("{} subscription CLI timed out after 600s", bin)),
+        };
         let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
         let stderr = String::from_utf8_lossy(&out.stderr);
         if !out.status.success() {
@@ -227,6 +234,35 @@ pub fn binary_in_path(name: &str) -> bool {
 /// Which subscription CLI backends are installed locally.
 pub fn installed_cli_backends() -> Vec<&'static str> {
     ["claude", "codex", "grok", "gemini"].into_iter().filter(|b| binary_in_path(b)).collect()
+}
+
+/// Does this provider's agentic CLI accept a Playwright MCP config?
+/// Claude Code and Codex do; Gemini/Grok CLIs don't take an MCP-config flag, so
+/// they fall back to their own built-in tools.
+pub fn mcp_supported(provider: &str) -> bool {
+    matches!(provider, "anthropic" | "openai")
+}
+
+/// Best-effort ensure the Playwright MCP server is available locally. Requires
+/// `npx`; pre-warms `@playwright/mcp` so the first agent call isn't a cold start.
+/// Returns Err with a clear reason when it can't be provisioned (caller then
+/// degrades to built-in tools).
+pub fn ensure_playwright_mcp() -> Result<()> {
+    if !binary_in_path("npx") {
+        return Err(anyhow!("npx (Node.js) not found — install Node to use Playwright MCP"));
+    }
+    // `npx -y @playwright/mcp@latest --help` installs the package into the npx
+    // cache on first run; ignore non-zero exit (some versions lack --help) as long
+    // as the package resolves.
+    let out = std::process::Command::new("npx")
+        .args(["-y", "@playwright/mcp@latest", "--help"])
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    match out {
+        Ok(_) => Ok(()),
+        Err(e) => Err(anyhow!("could not provision @playwright/mcp via npx: {e}")),
+    }
 }
 
 /// Write a Playwright `.mcp.json` into `dir` and return its path, so the agentic

@@ -87,8 +87,18 @@ impl ModelPool {
     /// Ask up to `n` distinct models the same yes/no validation question and
     /// return (confirmations, total_votes). A model answering "yes"/"confirmed"
     /// counts as a confirmation. Used to cut false positives.
-    pub async fn vote(&self, system: &str, user: &str, n: usize) -> (usize, usize) {
-        let panel: Vec<ModelRef> = self.candidates.iter().take(n.max(1)).cloned().collect();
+    ///
+    /// `skip` names the model that produced the finding; when the panel has more
+    /// than one model, that model is moved to the back so a DIFFERENT model
+    /// adjudicates first (cross-model false-positive validation).
+    pub async fn vote(&self, system: &str, user: &str, n: usize, skip: Option<&str>) -> (usize, usize) {
+        let mut ordered: Vec<ModelRef> = self.candidates.clone();
+        if let Some(finder) = skip {
+            if ordered.len() > 1 {
+                ordered.sort_by_key(|m| m.label() == finder); // finder (true) sorts last
+            }
+        }
+        let panel: Vec<ModelRef> = ordered.into_iter().take(n.max(1)).collect();
         let mut confirmed = 0usize;
         let mut total = 0usize;
         for m in &panel {

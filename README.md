@@ -120,10 +120,23 @@ neurosploit
 # or one-liner (subscription login, no API key needed):
 neurosploit run http://testphp.vulnweb.com/ --subscription --model anthropic:claude-opus-4-8 -v
 
+# white-box — review a source repository (SAST agents, file:line evidence):
+git clone https://github.com/digininja/DVWA /tmp/DVWA
+neurosploit whitebox /tmp/DVWA --subscription --model anthropic:claude-opus-4-8 -v
+
+# grey-box — review the code AND exploit the running app together:
+neurosploit greybox /tmp/DVWA --url http://localhost:8080/ --creds creds.yaml \
+  --subscription --model anthropic:claude-opus-4-8 --mcp -v
+
+# host / infra — Linux / Windows / Active Directory (SSH/Win creds in creds.yaml):
+neurosploit host 10.0.0.10 --creds creds.yaml --subscription --model anthropic:claude-opus-4-8 -v
+
 # 🛰  Mission Control TUI — live panels (header/feed/findings/targets) + a composer
 #    you can type in WHILE the run streams (summary · pause · errors · notes):
 neurosploit tui http://testphp.vulnweb.com/ --subscription --model anthropic:claude-opus-4-8 --mcp
 ```
+
+> Full step-by-step for every mode (black/white/grey/host) is in **[TUTORIAL.md](TUTORIAL.md)**.
 
 No login? Use an **API key** instead — see [Authentication](#authentication--run-via-api-key-or-subscription).
 

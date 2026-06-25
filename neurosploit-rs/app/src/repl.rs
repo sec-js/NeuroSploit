@@ -948,7 +948,8 @@ fn help() {
     h("/votes <n>",         "validator votes           /agents <n>  cap agents");
     h("/theme color|mono",  "/show (config)            /clear        /quit");
 
-    println!("\n  \x1b[2m↑/↓ history · Tab completes commands & @paths · Ctrl-A/E/K edit · \\ for multiline\x1b[0m\n");
+    println!("\n  \x1b[2mMODES — black-box: set /target · white-box: set /repo · grey-box: set BOTH /repo + /target · host: /target <ip> + /creds\x1b[0m");
+    println!("  \x1b[2m↑/↓ history · Tab completes commands & @paths · Ctrl-A/E/K edit · Ctrl-O full cmd · \\ for multiline\x1b[0m\n");
 }
 
 /// Scan a line for @path tokens, attach each referenced file/dir to context.

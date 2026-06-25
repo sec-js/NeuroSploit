@@ -188,23 +188,71 @@ neurosploit run http://testphp.vulnweb.com/ \
 
 ### 5.2 White-box (source repo)
 
+Reviews a **local code repository** with the 78 source-review (SAST) agents:
+SQLi, command injection, SSRF, XSS, path traversal, insecure deserialization,
+hardcoded secrets, weak crypto, auth/IDOR, XXE, SSTI, language-specific sinks
+(PHP/Java/.NET/Go/Node/Python), and more.
+
 ```bash
+# 1. clone or point at the code you own
 git clone https://github.com/digininja/DVWA /tmp/DVWA
+
+# 2. review it (subscription or --model with an API key)
 neurosploit whitebox /tmp/DVWA --subscription --model anthropic:claude-opus-4-8 -v
+
+# focus a specific class, cap agents, raise the voting bar:
+neurosploit whitebox /tmp/DVWA --focus "injection and access control" \
+  --max-agents 8 --vote-n 2 --model openai:gpt-5.5
 ```
 
-Findings carry `file:line` evidence; grounding is **symbolic** (the location must
-exist in the reviewed source).
+**How it works**
+
+1. **Collects source context** — walks the repo (skips `.git/node_modules/target/
+   vendor`), reads supported source files into a bounded review context.
+2. **Selects code agents** for the languages/frameworks it sees.
+3. Each agent traces **source → sink** dataflow and must quote the **exact
+   vulnerable lines as `file:line`**.
+4. **Grounding is symbolic**: a finding is only kept if its `file:line` / quoted
+   code actually exists in the reviewed source (no hallucinated locations).
+5. **Validated** by cross-model voting, then reported with the code reference,
+   CWE/OWASP, PoC and remediation.
+
+**Tips**
+- No `--mcp` is used in white-box (there's no live app to browse).
+- For huge repos, narrow with `--focus` or point at a subdirectory.
+- Each finding's `endpoint` field is the `file:line`; `evidence` quotes the code;
+  `payload` is the PoC / vulnerable snippet — view it all with `/finding`.
 
 ### 5.3 Grey-box (code + live app)
 
-Best of both: review the source **and** prove issues against the running app —
-code findings become *leads* for live exploitation.
+The strongest mode: review the **source** *and* exploit the **running app**
+together. Code-review findings become **leads** that the live agents confirm
+against the deployed application (so a SQLi spotted in code is proven exploitable
+on the running endpoint).
 
 ```bash
+# code repo + the URL where that code is actually running
 neurosploit greybox /tmp/DVWA --url http://localhost:8080/ \
-  --creds creds.yaml --focus "auth and IDOR" --subscription --model anthropic:claude-opus-4-8 -v
+  --creds creds.yaml --focus "auth and IDOR" \
+  --subscription --model anthropic:claude-opus-4-8 --mcp -v
 ```
+
+**How it works**
+
+1. **Recon** the live app (`--url`).
+2. **Review the source** with the code agents → produces a list of *leads*
+   (suspected vulns with file:line).
+3. **Live exploitation** runs with those leads injected as context, so agents go
+   straight for the proven-in-code weaknesses and **prove them on the live app**
+   (empirical receipt: real request/response).
+4. Validate (cross-model) → chain → report.
+
+**Notes**
+- Pass `--creds creds.yaml` so agents test **authenticated** flows (login / JWT /
+  cookie) — essential for IDOR/BOLA/auth findings.
+- `--mcp` enables the Playwright browser for client-side proof (e.g. XSS firing).
+- In the REPL: set **both** `/repo <path>` and `/target <url>` → grey-box is
+  auto-selected; `/show` displays `mode: greybox (code + live)`.
 
 ### 5.4 Host / Infra (Linux / Windows / AD)
 

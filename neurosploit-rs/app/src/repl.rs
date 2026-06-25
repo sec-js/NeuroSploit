@@ -139,13 +139,12 @@ enum Reader {
 }
 
 impl Reader {
-    fn new(base: &Path) -> Reader {
+    fn new(_base: &Path) -> Reader {
         if std::io::stdin().is_terminal() {
             let cfg = Config::builder().auto_add_history(false).build();
             if let Ok(mut ed) = Editor::<NsHelper, FileHistory>::with_config(cfg) {
                 ed.set_helper(Some(NsHelper));
-                let hist = base.join("data").join("repl_history.txt");
-                std::fs::create_dir_all(hist.parent().unwrap()).ok();
+                let hist = proj_dir().join("history.txt");
                 let _ = ed.load_history(&hist);
                 return Reader::Rl(Box::new(ed), hist);
             }
@@ -200,9 +199,11 @@ pub async fn repl(base: &Path) -> anyhow::Result<()> {
     println!("  Type \x1b[36m/help\x1b[0m to start, \x1b[36m/run\x1b[0m to launch, \x1b[36m/quit\x1b[0m to exit. (↑/↓ recalls commands)\n");
 
     let mut s = Session::default();
+    let resumed = load_session(&mut s);
     let mut history: Vec<RunRecord> = load_runs(base);
-    if !history.is_empty() {
-        println!("  loaded {} past run(s) — /runs to list\n", history.len());
+    if resumed || !history.is_empty() {
+        println!("  ↻ resumed project session from {} — {} past run(s)\n",
+            proj_dir().display(), history.len());
     }
     let mut reader = Reader::new(base);
     show(&s);
@@ -281,12 +282,12 @@ pub async fn repl(base: &Path) -> anyhow::Result<()> {
             "/votes" => { s.vote_n = arg.parse().unwrap_or(s.vote_n); println!("  votes: {}", s.vote_n); }
             "/agents" => { s.max_agents = arg.parse().unwrap_or(s.max_agents); println!("  max agents: {}", s.max_agents); }
             "/clear" => { print!("\x1b[2J\x1b[H"); }
-            "/run" | "/go" => { run(base, &s, &mut history).await; save_runs(base, &history); }
+            "/run" | "/go" => { save_session(&s); run(base, &s, &mut history).await; save_runs(base, &history); }
             "/runs" | "/history" => list_runs(&history),
             "/results" => results(&history, arg),
             "/report" => open_report(&history, arg),
             "/status" => run_status(&history, arg),
-            "/quit" | "/exit" | "/q" => { println!("  bye."); break; }
+            "/quit" | "/exit" | "/q" => { save_session(&s); println!("  session saved → {} · bye.", proj_dir().display()); break; }
             other => println!("  unknown command '{other}' — try /help"),
         }
     }
@@ -423,18 +424,59 @@ async fn run(base: &Path, s: &Session, history: &mut Vec<RunRecord>) {
     }
 }
 
-fn runs_path(base: &Path) -> std::path::PathBuf {
-    base.join("data").join("repl_runs.json")
+/// Project-local store: `<cwd>/.neurosploit/` so each project keeps its own
+/// session, run history and command history (resume on reopen). No DB needed —
+/// it's structured state, not semantic search.
+pub(crate) fn proj_dir() -> std::path::PathBuf {
+    let d = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from(".")).join(".neurosploit");
+    std::fs::create_dir_all(&d).ok();
+    d
 }
-fn load_runs(base: &Path) -> Vec<RunRecord> {
-    std::fs::read_to_string(runs_path(base)).ok()
+fn runs_path(_base: &Path) -> std::path::PathBuf { proj_dir().join("runs.json") }
+fn load_runs(_base: &Path) -> Vec<RunRecord> {
+    std::fs::read_to_string(runs_path(_base)).ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or_default()
 }
-fn save_runs(base: &Path, history: &[RunRecord]) {
-    let p = runs_path(base);
-    if let Some(dir) = p.parent() { std::fs::create_dir_all(dir).ok(); }
+fn save_runs(_base: &Path, history: &[RunRecord]) {
+    let p = runs_path(_base);
     if let Ok(j) = serde_json::to_string_pretty(history) { std::fs::write(p, j).ok(); }
+}
+
+/// Persistable snapshot of the session config (resume across restarts).
+#[derive(Serialize, Deserialize, Default)]
+struct Snapshot {
+    models: Vec<String>,
+    subscription: bool,
+    mcp: bool,
+    vote_n: usize,
+    max_agents: usize,
+    target: Option<String>,
+    repo: Option<String>,
+    auth: Option<String>,
+    creds: Option<String>,
+    instructions: Option<String>,
+}
+fn session_path() -> std::path::PathBuf { proj_dir().join("session.json") }
+fn save_session(s: &Session) {
+    let snap = Snapshot {
+        models: s.models.clone(), subscription: s.subscription, mcp: s.mcp,
+        vote_n: s.vote_n, max_agents: s.max_agents, target: s.target.clone(),
+        repo: s.repo.clone(), auth: s.auth.clone(), creds: s.creds.clone(),
+        instructions: s.instructions.clone(),
+    };
+    if let Ok(j) = serde_json::to_string_pretty(&snap) { std::fs::write(session_path(), j).ok(); }
+}
+fn load_session(s: &mut Session) -> bool {
+    let Ok(txt) = std::fs::read_to_string(session_path()) else { return false };
+    let Ok(snap) = serde_json::from_str::<Snapshot>(&txt) else { return false };
+    if !snap.models.is_empty() { s.models = snap.models; }
+    s.subscription = snap.subscription; s.mcp = snap.mcp;
+    if snap.vote_n > 0 { s.vote_n = snap.vote_n; }
+    s.max_agents = snap.max_agents;
+    s.target = snap.target; s.repo = snap.repo; s.auth = snap.auth;
+    s.creds = snap.creds; s.instructions = snap.instructions;
+    true
 }
 
 fn pick<'a>(history: &'a [RunRecord], arg: &str) -> Option<&'a RunRecord> {

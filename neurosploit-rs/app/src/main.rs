@@ -201,8 +201,8 @@ async fn main() -> anyhow::Result<()> {
         Cmd::Agents => {
             let lib = agents::load(&base);
             println!(
-                "{{\"vulns\":{},\"recon\":{},\"code\":{},\"infra\":{},\"meta\":{},\"total\":{}}}",
-                lib.vulns.len(), lib.recon.len(), lib.code.len(), lib.infra.len(), lib.meta.len(), lib.total()
+                "{{\"vulns\":{},\"recon\":{},\"code\":{},\"infra\":{},\"chains\":{},\"meta\":{},\"total\":{}}}",
+                lib.vulns.len(), lib.recon.len(), lib.code.len(), lib.infra.len(), lib.chains.len(), lib.meta.len(), lib.total()
             );
         }
         Cmd::Models => {

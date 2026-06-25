@@ -24,11 +24,13 @@ pub struct Library {
     pub recon: Vec<Agent>,
     pub code: Vec<Agent>,
     pub infra: Vec<Agent>,
+    pub chains: Vec<Agent>,
 }
 
 impl Library {
     pub fn total(&self) -> usize {
-        self.vulns.len() + self.meta.len() + self.recon.len() + self.code.len() + self.infra.len()
+        self.vulns.len() + self.meta.len() + self.recon.len() + self.code.len()
+            + self.infra.len() + self.chains.len()
     }
 }
 
@@ -41,6 +43,7 @@ pub fn load(base: &Path) -> Library {
         recon: load_dir(&root.join("recon"), "recon"),
         code: load_dir(&root.join("code"), "code"),
         infra: load_dir(&root.join("infra"), "infra"),
+        chains: load_dir(&root.join("chains"), "chain"),
     }
 }
 

@@ -128,6 +128,11 @@ pub struct RunConfig {
     /// newest footholds in new directions, carrying discovered loot forward.
     #[serde(default = "default_chain_depth")]
     pub chain_depth: usize,
+    /// Optional local intercepting proxy (Burp/ZAP), e.g. http://127.0.0.1:8080.
+    /// When set, agents route HTTP through it so the operator can inspect/replay
+    /// traffic in Burp Suite.
+    #[serde(default)]
+    pub proxy: Option<String>,
 }
 
 fn default_vote() -> usize {
@@ -159,6 +164,7 @@ impl RunConfig {
             repo: None,
             pinned: Vec::new(),
             chain_depth: 2,
+            proxy: None,
         }
     }
 }

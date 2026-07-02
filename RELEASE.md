@@ -10,14 +10,16 @@
 ## TL;DR
 
 v3.5.5 adds **cloud infrastructure testing** (AWS / GCP / Azure) with first-class
-credential connection and **17 new cloud agents**, a much more capable and
-navigable **REPL** (idle guardrail, multi-target, results browser), **deeper
-recon** (downloads & analyzes JS, request/response differentials), and a fix for
-garbled interactive line-editing.
+credential connection, **27 new agents** (17 cloud + 10 misconfig/CVE/PoC/rate-
+limit → library **375**), a much more capable and navigable **REPL** (idle
+guardrail, multi-target, results browser), **deeper recon** (downloads & analyzes
+JS, request/response differentials, smart nuclei), **Burp/ZAP proxy** support, a
+**PoC** workspace, a strict **data-safety/PII guardrail**, and a fix for garbled
+interactive line-editing.
 
 ## Cloud testing
 
-- **+17 cloud agents (library now 365).** AWS, GCP and Azure specialists in
+- **+17 cloud agents.** AWS, GCP and Azure specialists in
   `agents_md/infra/`: IAM/RBAC privilege escalation, storage exposure
   (S3 / GCS / Blob), compute & network exposure + IMDS, secrets (Secrets Manager /
   Secret Manager / Key Vault), service-account & service-principal abuse, and
@@ -66,6 +68,29 @@ garbled interactive line-editing.
   endpoints/secrets/source-maps) and request/response-analysis guidance (status,
   all headers, Set-Cookie flags, timing/length differentials, auth-vs-anon and
   valid-vs-invalid comparisons) — applied to both recon and exploitation.
+
+## Exploitation depth, safety & Burp
+
+- **+10 exploitation agents.** Absurd-misconfig hunters (exposed `.git`/`.env`/
+  backups, debug/actuator endpoints, default creds, directory listing, exposed
+  ops dashboards, permissive CORS, verbose errors), a **CVE Hunter** (fingerprint
+  → correlate → safe PoC), a **PoC Developer** (writes runnable exploit scripts),
+  and a **Rate-Limit / Anti-Automation** tester.
+- **Data-safety / PII guardrail** injected into every exploit/chain/host prompt:
+  no modifying, deleting, exfiltrating data or changing state without explicit
+  permission; on PII, prove with a single **masked** sample + a count — never
+  dump. When unsure an action is safe, don't do it.
+- **Smart nuclei in recon** — fingerprint first, then run nuclei on **targeted**
+  templates/tags/CVE ids with rate/timeouts (fast, never a blind full scan).
+- **Burp/ZAP proxy** — `/proxy <url>` (or `/burp`, default `:8080`) in the REPL,
+  or the `NEUROSPLOIT_PROXY` env var. Agents route curl through it (`--proxy … -k`)
+  so you can inspect/replay traffic in Burp Suite while the test runs.
+- **PoC workspace** — each run gets a `pocs/` directory (`$NEUROSPLOIT_POCS`);
+  agents save custom, reproducible exploit scripts there and cite them as evidence.
+- **Tool download** (authorized) — agents may `git clone` a specific public PoC/
+  exploit repo or download a scanner when needed (reputable/pinned, reviewed).
+- **Rate-limit testing** is a first-class control check (small non-disruptive
+  burst → look for 429/lockout/Retry-After), never a DoS.
 
 ## Notes
 

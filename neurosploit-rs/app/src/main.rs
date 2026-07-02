@@ -550,6 +550,19 @@ pub(crate) fn spawn_engagement(base: &Path, mut cfg: RunConfig, mcp: bool, mode:
     std::fs::create_dir_all(&workdir).ok();
     cfg.workdir = Some(workdir.display().to_string());
     cfg.rl_path = Some(base.join("data").join("rl_state_rs.json").display().to_string());
+    // PoC scratch dir: agents write custom exploit scripts here (see doctrine).
+    let pocs = workdir.join("pocs");
+    std::fs::create_dir_all(&pocs).ok();
+    std::env::set_var("NEUROSPLOIT_POCS", pocs.display().to_string());
+    // Local intercepting proxy (Burp/ZAP): agents route HTTP through it. Comes
+    // from cfg.proxy (REPL /proxy) or the NEUROSPLOIT_PROXY env var (CLI).
+    let proxy = cfg.proxy.clone()
+        .or_else(|| std::env::var("NEUROSPLOIT_PROXY").ok())
+        .filter(|p| !p.trim().is_empty());
+    if let Some(p) = proxy {
+        std::env::set_var("NEUROSPLOIT_PROXY", &p);
+        println!("  │  proxy  : {p} (traffic routed to Burp/ZAP for inspection)");
+    }
     write_status(&workdir, "running", &format!("\"target\":{:?}", cfg.target));
 
     println!("  ┌─ NeuroSploit v3.5.5  ·  by Joas A Santos & Red Team Leaders");

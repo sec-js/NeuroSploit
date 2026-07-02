@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/Version-3.5.5-blue?style=flat-square">
   <img src="https://img.shields.io/badge/Harness-Rust%20%7C%20tokio-e6b673?style=flat-square">
   <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square">
-  <img src="https://img.shields.io/badge/MD%20Agents-365-red?style=flat-square">
+  <img src="https://img.shields.io/badge/MD%20Agents-375-red?style=flat-square">
   <img src="https://img.shields.io/badge/Models-14%20providers-success?style=flat-square">
   <img src="https://img.shields.io/badge/Modes-Black%20%7C%20White%20%7C%20Grey%20%7C%20Host-9cf?style=flat-square">
   <img src="https://img.shields.io/badge/Auth-API%20key%20%7C%20Subscription-orange?style=flat-square">
@@ -25,7 +25,7 @@
 > 📖 **New here? Read the [full Tutorial & User Guide →](TUTORIAL.md)** — every mode, flag, config and example explained.
 
 > 🆕 **New in v3.5.5 — Cloud testing + REPL navigation + deeper recon:**
-> **AWS/GCP/Azure** agents (+17 → **365** total) with credentials wired through
+> **AWS/GCP/Azure** agents (+17 → **375** total) with credentials wired through
 > `creds.yaml`; a more navigable **REPL** — **`/timeout`** idle guardrail,
 > **multi-target** `/target a,b,c` (sequential), an interactive **`/results`**
 > browser (target → vuln → detail, Esc to go back) and **`/report`** picker; and
@@ -44,7 +44,7 @@ LLMs** — via **API key** or local **subscription** (Claude Code / Codex / Gemi
 Grok) — recons the target, **intelligently selects only the agents that match the
 discovered surface**, runs them in parallel, **chains** findings into deeper
 impact, and **validates every claim by cross-model voting + tool-receipt
-grounding** before reporting. It ships **365 markdown agents** and a **Mission
+grounding** before reporting. It ships **375 markdown agents** and a **Mission
 Control TUI**.
 
 ### Engagement modes
@@ -75,6 +75,14 @@ Control TUI**.
   (`aws`/`gcloud`/`az`). Connect via `creds.yaml`: AWS keys, a Google
   service-account JSON, or an Azure service principal — see
   [Cloud credentials](#cloud-credentials-awsgcpazure).
+- 🧰 **Misconfig & CVE hunting, safely** — dedicated agents for absurd
+  misconfigs (exposed `.git`/`.env`, debug/actuator, default creds, dashboards,
+  CORS), a **CVE Hunter** (smart, targeted `nuclei`), a **PoC Developer** (writes
+  reproducible scripts to the run's `pocs/`), and **rate-limit** testing — all
+  under a strict **data-safety/PII guardrail** (no destructive or state-changing
+  actions; PII proven with a masked sample, never dumped).
+- 🕵️ **Burp/ZAP proxy** — `/proxy <url>` (or `/burp`) routes agent traffic
+  through your local intercepting proxy so you can inspect & replay in Burp.
 - 🗺️ **Attack graph & kill chain** — findings mapped to OWASP / CWE / MITRE
   ATT&CK / stage; rendered as a Mermaid graph in the report.
 - ✅ **Cross-model validation** — a different model adjudicates each finding;

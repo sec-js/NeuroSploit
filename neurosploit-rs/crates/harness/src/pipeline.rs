@@ -68,11 +68,61 @@ fn tool_doctrine(mcp_on: bool) -> String {
            Prefer `linkfinder`/`gau`/`katana` to harvest more URLs when present, else regex with `grep -Eo`.\n\
          - REQUEST/RESPONSE ANALYSIS: read status codes, every header, Set-Cookie flags, content-type, body length \
            and response timing; use DIFFERENTIALS (authenticated vs anonymous, valid vs invalid input, existing vs \
-           missing resource) and reflected input / verbose errors to infer behavior and CONFIRM issues with evidence.\n\
+           missing resource) and reflected input / verbose errors to infer behavior and CONFIRM issues with evidence. \
+           Save full request/response pairs when they matter for the PoC.\n\
+         - NUCLEI (fast, targeted — never a blind full scan): first fingerprint the stack, then run nuclei ONLY on \
+           relevant templates, e.g. `nuclei -u <target> -tags <detected-tech,cve> -severity critical,high,medium \
+           -rl 50 -timeout 8 -retries 1` (or `-t <specific-template>` for a suspected CVE). Prefer targeted \
+           `-id`/`-tags` over the whole template set so it stays quick; confirm any hit manually with curl.\n\
+         - MISCONFIG HUNTING: probe for absurd-but-common misconfigurations — exposed `.git`/`.env`/backup & config \
+           files, directory listing, debug/actuator/trace endpoints, default & weak credentials, open admin panels, \
+           permissive CORS, verbose stack traces, exposed dashboards (Kibana/Grafana/Jenkins/phpMyAdmin), and cloud \
+           metadata (169.254.169.254) via SSRF.\n\
+         - RATE-LIMIT / ANTI-AUTOMATION: on auth, password-reset, OTP and sensitive endpoints, send a controlled \
+           burst (e.g. ~20-30 requests) and check for 429/lockout/Retry-After/backoff; report absence as a finding. \
+           Keep bursts small and non-disruptive — this is a control check, not a DoS.\n\
+         - TOOL DOWNLOAD (authorized): when a public PoC or scanner is needed you MAY `git clone` a specific PoC/exploit \
+           repo or download a tool (`git clone`, `wget`, `pip install`, `go install`, `cargo install`) — use pinned, \
+           reputable sources; review before running; never run destructive payloads.\n\
          - {browser}\n\
-         Use only what is installed; degrade gracefully. Never run destructive or DoS actions.\n\n"
+         - {proxy}{pocs}\
+         Use only what is installed; degrade gracefully. Never run destructive or DoS actions.\n\n",
+        proxy = proxy_line(),
+        pocs = pocs_line(),
     )
 }
+
+/// If a local proxy is configured (Burp/ZAP), tell agents to route HTTP through
+/// it so the operator can inspect/replay traffic in Burp Suite.
+fn proxy_line() -> String {
+    match std::env::var("NEUROSPLOIT_PROXY").ok().filter(|v| !v.trim().is_empty()) {
+        Some(p) => format!(
+            "PROXY: route ALL HTTP through the local intercepting proxy at {p} (Burp/ZAP) so the operator can \
+             inspect & replay in Burp — add `--proxy {p} -k` to every curl (and set http(s)_proxy for other tools). \
+             Send anything noteworthy through it for manual review.\n         "),
+        None => String::new(),
+    }
+}
+
+/// If a PoC directory is set, tell agents to save custom exploit scripts there.
+fn pocs_line() -> String {
+    match std::env::var("NEUROSPLOIT_POCS").ok().filter(|v| !v.trim().is_empty()) {
+        Some(d) => format!(
+            "POCS: when an issue needs a custom multi-step exploit/script to prove it, WRITE a runnable PoC \
+             (curl/python/bash) to {d}/ with a short header comment (target, what it proves, usage), run it to \
+             confirm, and reference the file path in the finding evidence.\n         "),
+        None => String::new(),
+    }
+}
+
+/// Data-safety guardrail prepended to every exploit/chain prompt.
+const SAFETY_DOCTRINE: &str = "DATA SAFETY (strict): prove impact WITHOUT harming data. Do NOT modify, delete, \
+overwrite, encrypt or exfiltrate data, create/alter/escalate accounts, or change configuration/state — unless the \
+operator has explicitly authorized that specific action. Read-only, minimal proof. If you encounter PII (names, \
+emails, CPF/SSN, phones, cards, tokens): confirm access with the SMALLEST possible sample and REDACT it in the \
+report (e.g. show 1 masked record + a count) — never dump, store, or transmit the dataset. Prefer benign markers \
+and OOB/echo checks over any state-changing payload. When unsure whether an action is safe, don't do it — report \
+it as reachable and stop.\n\n";
 const VOTE_SYS: &str = "You are an adversarial security validator. Decide if the candidate finding is a REAL, reproducible, exploitable vulnerability whose EVIDENCE actually proves impact. Reject common false positives: input merely reflected but not executed; version/banner guesses with no working PoC; self-XSS; theoretical issues; an error message or stack trace mistaken for injection; missing, generic, or non-reproducible evidence; severity inflated beyond what the evidence demonstrates. Confirm only if the provided evidence (request/response) concretely proves the vulnerability. Reply with JSON {\"verdict\":\"confirmed\"|\"rejected\",\"reason\":\"...\"}. Default to rejected when uncertain.";
 /// Adversarial second pass for High/Critical findings: assume false positive
 /// until the evidence forces otherwise. A finding that can't withstand the
@@ -195,13 +245,13 @@ pub async fn run(cfg: RunConfig, lib: &Library, pool: &ModelPool, tx: Sender<Str
                 let user = format!(
                     "AUTHORIZED engagement — you have explicit permission to test {target}. \
                      Do not ask for confirmation — proceed and PROVE each issue.\n\n\
-                     {directives}{react}{depth}{doctrine}{body}\n\nWhen done, reply with ONLY a JSON array of confirmed findings (may be empty []). \
+                     {directives}{react}{depth}{safety}{doctrine}{body}\n\nWhen done, reply with ONLY a JSON array of confirmed findings (may be empty []). \
                      Each item: {{id,title,severity,cwe,endpoint,payload,evidence,impact,remediation,confidence}}. \
                      `evidence` must contain the concrete proof (request/response excerpt).",
                     target = target,
                     directives = directives,
                     react = REACT_DOCTRINE,
-                    depth = DEPTH_DOCTRINE,
+                    depth = DEPTH_DOCTRINE, safety = SAFETY_DOCTRINE,
                     doctrine = tool_doctrine(mcp_on),
                     body = ag.user.replace("{target}", &target).replace("{recon_json}", &recon),
                 );
@@ -413,11 +463,11 @@ pub async fn run_greybox(cfg: RunConfig, lib: &Library, pool: &ModelPool, tx: Se
                 }
                 let user = format!(
                     "AUTHORIZED greybox engagement on {target} — you also have the source review below. \
-                     Proceed and PROVE each issue against the LIVE app.\n\n{directives}{leads}{react}{depth}{doctrine}{body}\n\n\
+                     Proceed and PROVE each issue against the LIVE app.\n\n{directives}{leads}{react}{depth}{safety}{doctrine}{body}\n\n\
                      Reply ONLY a JSON array of confirmed findings (may be []): \
                      {{id,title,severity,cwe,endpoint,payload,evidence,impact,remediation,confidence}}.",
                     target = target, directives = directives, leads = leads,
-                    react = REACT_DOCTRINE, depth = DEPTH_DOCTRINE, doctrine = tool_doctrine(mcp_on),
+                    react = REACT_DOCTRINE, depth = DEPTH_DOCTRINE, safety = SAFETY_DOCTRINE, doctrine = tool_doctrine(mcp_on),
                     body = ag.user.replace("{target}", &target).replace("{recon_json}", &recon),
                 );
                 match pool.complete_routed(Task::Exploit, &ag.name, &ag.system, &user).await {
@@ -561,13 +611,13 @@ async fn chain_from_seed(pool: &ModelPool, target: &str, directives: &str, recon
     };
     let short: String = seed.title.chars().take(28).collect();
     let user = format!(
-        "AUTHORIZED engagement on {target}.\n\n{directives}{react}{depth}{doctrine}\
+        "AUTHORIZED engagement on {target}.\n\n{directives}{react}{depth}{safety}{doctrine}\
          FOOTHOLD TO EXPAND (round {round}/{max}):\n- [{}] {} @ {} ({})\n  payload: {}\n  evidence: {}\n\n\
          LOOT GATHERED (reuse it):\n{loot_block}\n\n{recipe_block}RECON:\n{recon_ctx}\n\n\
          From THIS foothold, DECIDE the best directions and PROVE new impact — post-exploitation (loot creds/keys/config/source), credential reuse, privilege escalation (horizontal & vertical), lateral movement to adjacent services/hosts, data exfiltration, and NEW attack surface it exposes. Every claim needs a real tool receipt.\n\n\
          Reply ONLY JSON: {{\"findings\":[{{id,title,severity,cwe,endpoint,payload,evidence,impact,remediation,confidence}}],\"loot\":[\"cred:user:pass@host\",\"token:...\",\"host:10.0.0.5\",\"endpoint:/internal/api\"]}} (empty arrays are fine).",
         seed.severity, seed.title, seed.endpoint, seed.cwe, seed.payload, seed.evidence,
-        react = REACT_DOCTRINE, depth = DEPTH_DOCTRINE, doctrine = tool_doctrine(pool.mcp_config.is_some()),
+        react = REACT_DOCTRINE, depth = DEPTH_DOCTRINE, safety = SAFETY_DOCTRINE, doctrine = tool_doctrine(pool.mcp_config.is_some()),
     );
     let label = format!("chain:{short}");
     match pool.complete_routed(Task::Exploit, &label, CHAIN_SYS, &user).await {
@@ -1124,8 +1174,8 @@ pub async fn run_host(cfg: RunConfig, lib: &Library, pool: &ModelPool, tx: Sende
                     let _ = txc.send(format!("  ▶ launching agent: {} ({})", ag.name, ag.title.replace(" Agent", ""))).await;
                 }
                 let user = format!(
-                    "AUTHORIZED host engagement on {target}. Proceed and PROVE each issue with raw tool output.\n\n{directives}{tooling}{react}{body}\n\nReply ONLY a JSON array of confirmed findings (may be []): {{id,title,severity,cwe,endpoint,payload,evidence,impact,remediation,confidence}}.",
-                    target = target, directives = directives, tooling = HOST_TOOLING, react = REACT_DOCTRINE,
+                    "AUTHORIZED host engagement on {target}. Proceed and PROVE each issue with raw tool output.\n\n{directives}{tooling}{react}{safety}{body}\n\nReply ONLY a JSON array of confirmed findings (may be []): {{id,title,severity,cwe,endpoint,payload,evidence,impact,remediation,confidence}}.",
+                    target = target, directives = directives, tooling = HOST_TOOLING, react = REACT_DOCTRINE, safety = SAFETY_DOCTRINE,
                     body = ag.user.replace("{target}", &target).replace("{recon_json}", &recon),
                 );
                 match pool.complete_routed(Task::Exploit, &ag.name, &ag.system, &user).await {

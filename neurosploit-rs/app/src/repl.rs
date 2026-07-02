@@ -119,7 +119,7 @@ struct LiveCheckpoint {
 const COMMANDS: &[&str] = &[
     "/help", "/show", "/config", "/providers", "/model", "/key", "/sub", "/target",
     "/repo", "/auth", "/creds", "/focus", "/attach", "/context", "/mcp", "/offline",
-    "/votes", "/chain", "/timeout", "/agents", "/theme", "/clear", "/run", "/stop", "/continue", "/runs", "/results", "/report",
+    "/votes", "/chain", "/timeout", "/proxy", "/burp", "/agents", "/theme", "/clear", "/run", "/stop", "/continue", "/runs", "/results", "/report",
     "/status", "/diff", "/retest", "/integrations", "/quit",
 ];
 
@@ -217,6 +217,8 @@ struct Session {
     /// Idle guardrail: stop a run if no NEW finding lands in this many seconds
     /// (0 = disabled). Set in minutes via `/timeout <mins>`.
     idle_secs: u64,
+    /// Local intercepting proxy (Burp/ZAP), e.g. http://127.0.0.1:8080.
+    proxy: Option<String>,
     offline: bool,
     target: Option<String>,
     repo: Option<String>,
@@ -237,6 +239,7 @@ impl Default for Session {
             max_agents: 0,
             chain_depth: 2,
             idle_secs: 300, // 5-minute idle guardrail by default
+            proxy: None,
             offline: false,
             target: None,
             repo: None,
@@ -436,6 +439,15 @@ pub async fn repl(base: &Path) -> anyhow::Result<()> {
                     s.idle_secs = mins.saturating_mul(60);
                     if mins == 0 { println!("  idle guardrail: off"); }
                     else { println!("  idle guardrail: stop if no new finding in {mins} min"); }
+                }
+            }
+            "/proxy" | "/burp" => {
+                match arg {
+                    "" => println!("  proxy: {}", s.proxy.clone().unwrap_or_else(|| "(none) — route traffic to Burp/ZAP with /proxy <url>, e.g. /proxy http://127.0.0.1:8080".into())),
+                    "off" | "clear" | "none" => { s.proxy = None; println!("  proxy cleared — traffic goes direct"); }
+                    "on" => { s.proxy = Some("http://127.0.0.1:8080".into()); println!("  proxy: http://127.0.0.1:8080 (default Burp) — agents route curl through it"); }
+                    u => { let p = if u.starts_with("http") { u.to_string() } else { format!("http://{u}") };
+                           s.proxy = Some(p.clone()); println!("  proxy: {p} — agents route HTTP through it so you can inspect/replay in Burp"); }
                 }
             }
             "/repo" => {
@@ -742,6 +754,7 @@ async fn run(base: &Path, s: &Session, history: &mut Vec<RunRecord>) {
     cfg.subscription = s.subscription;
     cfg.vote_n = s.vote_n;
     cfg.chain_depth = s.chain_depth;
+    cfg.proxy = s.proxy.clone();
     cfg.max_agents = s.max_agents;
     cfg.verbose = true;
     cfg.offline = s.offline;
@@ -795,6 +808,7 @@ async fn start_background(base: &Path, s: &Session, reader: &mut Reader,
     cfg.subscription = s.subscription;
     cfg.vote_n = s.vote_n;
     cfg.chain_depth = s.chain_depth;
+    cfg.proxy = s.proxy.clone();
     cfg.max_agents = s.max_agents;
     cfg.verbose = true;
     cfg.offline = s.offline;
@@ -1228,6 +1242,7 @@ fn show(s: &Session) {
     println!("  │  repo     : {}", s.repo.clone().unwrap_or_else(|| "(none)".into()));
     println!("  │  auth     : {}", s.auth.clone().unwrap_or_else(|| "(none)".into()));
     println!("  │  creds    : {}", s.creds.clone().unwrap_or_else(|| "(none)".into()));
+    println!("  │  proxy    : {}", s.proxy.clone().unwrap_or_else(|| "(none — /proxy for Burp/ZAP)".into()));
     println!("  │  focus    : {}", s.instructions.clone().unwrap_or_else(|| "(none — tests everything)".into()));
     println!("  │  opts     : mcp={} offline={} votes={} chain-depth={} max-agents={} idle-stop={}",
         onoff(s.mcp), onoff(s.offline), s.vote_n, s.chain_depth, s.max_agents,
@@ -1289,6 +1304,7 @@ fn help() {
     h("/mcp on|off",        "Playwright MCP browser    /offline on|off  self-test");
     h("/votes <n>",         "validator votes           /chain <n>   attack-chain depth");
     h("/timeout <min>",     "idle guardrail: stop if no new finding in <min> (0 = off)");
+    h("/proxy <url>|off",    "route agent HTTP through Burp/ZAP (/burp = default :8080)");
     h("/agents <n>|list",   "cap agents · list counts  /theme color|mono");
     h("/show (config)",     "/clear                    /quit");
 
